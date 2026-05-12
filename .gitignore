@@ -1,0 +1,56 @@
+# --- Project Specific ---
+/club-mt-page/
+/api_tests
+
+# --- .NET ---
+[Bb]in/
+[Oo]bj/
+out/
+[Rr]elease/
+[Dd]ebug/
+*.user
+*.userosscache
+*.sln.docstates
+
+# --- Environment & Secrets ---
+.env
+.env.*
+!.env.example
+data/
+
+# --- JetBrains (Rider) ---
+.idea/
+*.sln.iml
+*.csproj.iml
+*.cshtml.iml
+*.razor.iml
+*.swp
+*.bak
+
+# --- Visual Studio Code ---
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# --- Visual Studio ---
+.vs/
+[Tt]est[Rr]esults/
+
+# --- OS Specific ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# --- Node/Frontend (if any in root) ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*

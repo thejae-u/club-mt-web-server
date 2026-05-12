@@ -1,0 +1,603 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using ClubMTServer.Data;
+using ClubMTServer.Models;
+using BCrypt.Net;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Text;
+using Microsoft.AspNetCore.RateLimiting;
+
+namespace ClubMTServer.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class ParticipantsController : ControllerBase
+{
+    private readonly ParticipantDbContext _context;
+    private readonly MemberDbContext _memberContext;
+    private readonly IConfiguration _config;
+    private readonly ClubMTServer.Services.EncryptionService _encryption;
+
+    public ParticipantsController(ParticipantDbContext context, MemberDbContext memberContext, IConfiguration config, ClubMTServer.Services.EncryptionService encryption)
+    {
+        _context = context;
+        _memberContext = memberContext;
+        _config = config;
+        _encryption = encryption;
+    }
+
+    [HttpPost("login")]
+    [EnableRateLimiting("login")]
+    public async Task<ActionResult<object>> Login(ParticipantLoginDto login)
+    {
+        var normalizedName = login.Name.Trim();
+        var nameHash = _encryption.ComputeHash(normalizedName);
+
+        // Find by NameHash and Generation to avoid collisions
+        var p = await _context.Participants
+            .Where(x => x.NameHash == nameHash && x.Generation == login.Generation)
+            .OrderByDescending(x => x.IsRegistered) // Prioritize active records
+            .ThenByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (p == null || !BCrypt.Net.BCrypt.Verify(login.Password, p.Password))
+        {
+            return Unauthorized("이름, 기수 또는 비밀번호가 올바르지 않습니다.");
+        }
+
+        // Generate JWT
+        var secret = _config["JWT_SECRET"] ?? throw new InvalidOperationException("JWT_SECRET is missing.");
+        var key = Encoding.ASCII.GetBytes(secret);
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(new[] { 
+                new Claim(ClaimTypes.NameIdentifier, p.Id.ToString()),
+                new Claim(ClaimTypes.Name, normalizedName),
+                new Claim(ClaimTypes.Role, "Participant")
+            }),
+            Expires = DateTime.UtcNow.AddDays(7),
+            Issuer = "ClubMTServer",
+            Audience = "ClubMTClient",
+            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+        };
+        var token = tokenHandler.CreateToken(tokenDescriptor);
+        var tokenString = tokenHandler.WriteToken(token);
+
+        var isLocalhost = Request.Host.Host == "localhost" || Request.Host.Host == "127.0.0.1";
+
+        Response.Cookies.Append("jwt", tokenString, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = !isLocalhost,
+            SameSite = isLocalhost ? SameSiteMode.Lax : SameSiteMode.None,
+            Expires = DateTime.UtcNow.AddDays(7),
+            Path = "/"
+        });
+        
+        return Ok(new { name = normalizedName });
+    }
+
+    [HttpGet("me")]
+    [Authorize]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<ActionResult<object>> GetMe()
+    {
+        var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (idClaim == null || !int.TryParse(idClaim, out var id)) return Unauthorized();
+
+        var p = await _context.Participants.FindAsync(id);
+        if (p == null) return NotFound();
+
+        return new {
+            p.Id, 
+            p.Name, // Automatically decrypted by EF Core
+            p.Generation, 
+            p.Type, 
+            p.PhoneNumber, // Automatically decrypted by EF Core
+            p.IsDepositConfirmed, p.IsWaitlisted, p.ChecklistJson,
+            p.CommonChecklistStatusJson,
+            p.OneLineExpectation, p.IsRegistered, p.MbtiResult
+        };
+    }
+
+    [HttpPut("me/mbti")]
+    [Authorize]
+    public async Task<IActionResult> UpdateMbtiResult([FromBody] string mbtiResult)
+    {
+        var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (idClaim == null || !int.TryParse(idClaim, out var id)) return Unauthorized();
+
+        var p = await _context.Participants.FindAsync(id);
+        if (p == null) return NotFound();
+
+        p.MbtiResult = mbtiResult;
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPut("me/checklist")]
+    [Authorize]
+    public async Task<IActionResult> UpdateChecklist([FromBody] string checklistJson)
+    {
+        var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (idClaim == null || !int.TryParse(idClaim, out var id)) return Unauthorized();
+
+        var p = await _context.Participants.FindAsync(id);
+        if (p == null) return NotFound();
+
+        p.ChecklistJson = checklistJson;
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPut("me/common-checklist-status")]
+    [Authorize]
+    public async Task<IActionResult> UpdateCommonChecklistStatus([FromBody] string statusJson)
+    {
+        var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (idClaim == null || !int.TryParse(idClaim, out var id)) return Unauthorized();
+
+        var p = await _context.Participants.FindAsync(id);
+        if (p == null) return NotFound();
+
+        p.CommonChecklistStatusJson = statusJson;
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<object>>> GetParticipants()
+    {
+        // Use more robust check for admin role
+        bool isAdmin = User.Claims.Any(c => c.Type == ClaimTypes.Role && c.Value == "admin");
+
+        var rawList = await _context.Participants.ToListAsync();
+
+        if (isAdmin)
+        {
+            // Admins get ALL data (except password) for management
+            return rawList.Select(p => new {
+                    p.Id, p.Type, 
+                    p.Name, // Automatically decrypted by EF Core
+                    p.Generation, 
+                    p.StudentId, // Automatically decrypted by EF Core
+                    p.PhoneNumber, // Automatically decrypted by EF Core
+                    p.ParticipationCount, 
+                    p.MemoryOrExpectation,
+                    p.ParticipationSchedule, p.MidJoinDetails,
+                    p.Transportation, p.IsCarpoolAvailable, p.CarpoolSeats,
+                    p.DepartureArea, p.Allergies, p.Remarks,
+                    p.OneLineExpectation,
+                    p.HasDriverLicense, p.DriverLicenseType, p.CanDrive, p.DrivingExperience,
+                    p.IsMilitaryPriority, p.MilitaryStatus,
+                    p.IsRegistered, p.IsDepositConfirmed, p.IsWaitlisted,
+                    p.CreatedAt
+                }).ToList();
+        }
+
+        return rawList.Select(p => {
+                var decryptedName = p.Name ?? ""; // Already decrypted by EF Core
+                var maskedName = decryptedName.Length > 1 
+                    ? decryptedName[..1] + new string('*', decryptedName.Length - 2) + decryptedName[^1..]
+                    : decryptedName;
+
+                return (object)new {
+                    p.Id, p.Type, 
+                    Name = maskedName, 
+                    p.Generation, 
+                    p.ParticipationCount, 
+                    p.OneLineExpectation, p.CreatedAt,
+                    p.IsRegistered,
+                    p.IsDepositConfirmed,
+                    p.IsWaitlisted
+                };
+            }).ToList();
+    }
+
+    // POST: api/Participants/5/toggle-waitlist (ADMIN ONLY)
+    [HttpPost("{id}/toggle-waitlist")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> ToggleWaitlist(int id, [FromServices] SettingsDbContext settingsContext)
+    {
+        var participant = await _context.Participants.FindAsync(id);
+        if (participant == null) return NotFound();
+
+        if (participant.IsWaitlisted)
+        {
+            // Try to confirm: Check capacity
+            var settings = await settingsContext.Settings.FirstOrDefaultAsync() ?? new SiteSettings();
+            var allRegistered = await _context.Participants.Where(p => p.IsRegistered && !p.IsWaitlisted).ToListAsync();
+            
+            if (participant.Type == ParticipantType.Military)
+            {
+                if (allRegistered.Count(p => p.Type == ParticipantType.Military) >= settings.MaxMilitaryCapacity)
+                    return BadRequest("군인 정원이 가득 찼습니다. 먼저 정원을 늘려주세요.");
+            }
+            else
+            {
+                if (allRegistered.Count(p => p.Type != ParticipantType.Military) >= settings.MaxGeneralCapacity)
+                    return BadRequest("일반 정원이 가득 찼습니다. 먼저 정원을 늘려주세요.");
+            }
+            participant.IsWaitlisted = false;
+        }
+        else
+        {
+            // Move back to waitlist
+            participant.IsWaitlisted = true;
+        }
+
+        await _context.SaveChangesAsync();
+        return Ok(new { isWaitlisted = participant.IsWaitlisted });
+    }
+
+    // POST: api/Participants/5/toggle-deposit (ADMIN ONLY)
+    [HttpPost("{id}/toggle-deposit")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> ToggleDeposit(int id)
+    {
+        var participant = await _context.Participants.FindAsync(id);
+        if (participant == null) return NotFound();
+
+        participant.IsDepositConfirmed = !participant.IsDepositConfirmed;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { isDepositConfirmed = participant.IsDepositConfirmed });
+    }
+
+    [HttpGet("{id}")]
+    [Authorize]
+    public async Task<ActionResult<object>> GetParticipant(int id)
+    {
+        var p = await _context.Participants.FindAsync(id);
+        if (p == null) return NotFound();
+
+        // Security: Only Admin or the owner can see full details
+        bool isAdmin = User.Claims.Any(c => c.Type == ClaimTypes.Role && c.Value == "admin");
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        bool isOwner = userIdClaim != null && userIdClaim == id.ToString();
+
+        if (!isAdmin && !isOwner)
+        {
+            return Forbid();
+        }
+
+        return new {
+            p.Id, p.Type, 
+            p.Name, // Automatically decrypted by EF Core
+            p.Generation, 
+            p.StudentId, // Automatically decrypted by EF Core
+            p.PhoneNumber, // Automatically decrypted by EF Core
+            p.ParticipationCount, p.MemoryOrExpectation,
+            p.ParticipationSchedule, p.MidJoinDetails, p.Transportation,
+            p.IsCarpoolAvailable, p.CarpoolSeats,
+            p.DepartureArea, p.Allergies, p.Remarks, p.OneLineExpectation,
+            p.HasDriverLicense, p.DriverLicenseType, p.CanDrive, p.DrivingExperience,
+            p.IsMilitaryPriority, p.MilitaryStatus, p.IsRegistered, p.IsWaitlisted
+        };
+    }
+
+    [HttpPost]
+    [EnableRateLimiting("submit")]
+    public async Task<ActionResult<object>> PostParticipant(ParticipantRegistrationDto reg, [FromServices] SettingsDbContext settingsContext)
+    {
+        var normalizedName = reg.Name.Trim();
+        var nameHash = _encryption.ComputeHash(normalizedName);
+
+        // 1. Find the member record by NameHash and Generation in Member DB
+        var member = await _memberContext.Members.FirstOrDefaultAsync(m => 
+            m.NameHash == nameHash && 
+            m.Generation == reg.Generation);
+
+        if (member == null)
+        {
+            return BadRequest("해당 이름과 기수로 등록된 동문 정보를 찾을 수 없습니다. 명단에 있는지 확인해주세요.");
+        }
+
+        // 2. Check for existing registration in Participant DB
+        var existing = await _context.Participants.FirstOrDefaultAsync(p => p.NameHash == nameHash && p.Generation == reg.Generation);
+        
+        if (existing != null && existing.IsRegistered)
+        {
+            return BadRequest("이미 신청이 완료된 회원입니다.");
+        }
+
+        if (string.IsNullOrEmpty(reg.Password))
+        {
+            return BadRequest("비밀번호는 필수 입력 항목입니다.");
+        }
+
+        // 3. Normalize phone and set password
+        var normalizedPhone = new string(reg.PhoneNumber.Where(char.IsDigit).ToArray());
+        var finalPassword = reg.Password;
+
+        // 4. Waitlist Logic
+        var settings = await settingsContext.Settings.FirstOrDefaultAsync() ?? new SiteSettings();
+        bool shouldWaitlist = false;
+        
+        var allRegistered = await _context.Participants.Where(p => p.IsRegistered && !p.IsWaitlisted).ToListAsync();
+        if (reg.Type == ParticipantType.Military)
+        {
+            if (allRegistered.Count(p => p.Type == ParticipantType.Military) >= settings.MaxMilitaryCapacity) shouldWaitlist = true;
+        }
+        else
+        {
+            if (allRegistered.Count(p => p.Type != ParticipantType.Military) >= settings.MaxGeneralCapacity) shouldWaitlist = true;
+        }
+
+        // 5. Reuse record or create new
+        var participant = existing ?? new Participant();
+
+        participant.Name = reg.Name;
+        participant.NameHash = nameHash;
+        participant.Generation = reg.Generation;
+        participant.Type = reg.Type;
+        participant.PhoneNumber = normalizedPhone;
+        participant.Password = BCrypt.Net.BCrypt.HashPassword(finalPassword);
+        participant.StudentId = reg.StudentId;
+        participant.ParticipationCount = reg.ParticipationCount;
+        participant.MemoryOrExpectation = reg.MemoryOrExpectation;
+        participant.ParticipationSchedule = reg.ParticipationSchedule;
+        participant.MidJoinDetails = reg.MidJoinDetails;
+        participant.Transportation = reg.Transportation;
+        participant.IsCarpoolAvailable = reg.IsCarpoolAvailable;
+        participant.CarpoolSeats = reg.CarpoolSeats;
+        participant.DepartureArea = reg.DepartureArea;
+        participant.Allergies = reg.Allergies;
+        participant.Remarks = reg.Remarks;
+        participant.OneLineExpectation = reg.OneLineExpectation;
+        participant.HasDriverLicense = reg.HasDriverLicense;
+        participant.DriverLicenseType = reg.DriverLicenseType;
+        participant.CanDrive = reg.CanDrive;
+        participant.DrivingExperience = reg.DrivingExperience;
+        participant.IsMilitaryPriority = reg.Type == ParticipantType.Military;
+        participant.MilitaryStatus = reg.MilitaryStatus;
+        participant.IsRegistered = true;
+        participant.IsWaitlisted = shouldWaitlist;
+        participant.CreatedAt = DateTime.UtcNow;
+
+        if (existing == null) _context.Participants.Add(participant);
+        await _context.SaveChangesAsync();
+
+        string msg = shouldWaitlist ? "정원이 초과되어 대기자 명단으로 등록되었습니다!" : "신청이 완료되었습니다!";
+        return Ok(new { participant.Id, Name = reg.Name, isWaitlisted = shouldWaitlist, message = msg });
+    }
+
+    [HttpPut("{id}")]
+    [Authorize]
+    public async Task<IActionResult> PutParticipant(int id, [FromBody] ParticipantUpdateDto update)
+    {
+        var participant = await _context.Participants.FindAsync(id);
+        if (participant == null) return NotFound();
+
+        // Security: Only Admin or the owner can update
+        bool isAdmin = User.Claims.Any(c => c.Type == ClaimTypes.Role && c.Value == "admin");
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        bool isOwner = userIdClaim != null && userIdClaim == id.ToString();
+
+        if (!isAdmin && !isOwner)
+        {
+            return Forbid();
+        }
+
+        // SECURITY: If NOT Admin, verify CurrentPassword before any sensitive update
+        if (!isAdmin)
+        {
+            if (string.IsNullOrEmpty(update.CurrentPassword) || !BCrypt.Net.BCrypt.Verify(update.CurrentPassword, participant.Password))
+            {
+                return Unauthorized("기존 비밀번호가 일치하지 않습니다.");
+            }
+        }
+
+        var normalizedName = update.Name.Trim();
+        participant.Name = update.Name; // Automatically encrypted by EF Core
+        participant.NameHash = _encryption.ComputeHash(normalizedName);
+        participant.Generation = update.Generation;
+        participant.Type = update.Type;
+        participant.StudentId = update.StudentId; // Automatically encrypted by EF Core
+        participant.PhoneNumber = new string(update.PhoneNumber.Where(char.IsDigit).ToArray()); // Automatically encrypted by EF Core
+        participant.ParticipationCount = update.ParticipationCount;
+        participant.MemoryOrExpectation = update.MemoryOrExpectation;
+        participant.ParticipationSchedule = update.ParticipationSchedule ?? "Full";
+        participant.MidJoinDetails = update.MidJoinDetails;
+        participant.Transportation = update.Transportation ?? "Car";
+        participant.IsCarpoolAvailable = update.IsCarpoolAvailable;
+        participant.CarpoolSeats = update.CarpoolSeats;
+        participant.DepartureArea = update.DepartureArea;
+        participant.Allergies = update.Allergies;
+        participant.Remarks = update.Remarks;
+        participant.OneLineExpectation = update.OneLineExpectation;
+        participant.HasDriverLicense = update.HasDriverLicense;
+        participant.DriverLicenseType = update.DriverLicenseType;
+        participant.CanDrive = update.CanDrive;
+        participant.DrivingExperience = update.DrivingExperience;
+        participant.IsMilitaryPriority = update.IsMilitaryPriority;
+        participant.MilitaryStatus = update.MilitaryStatus;
+
+        // Admin-only fields OR preserved for owner
+        if (isAdmin)
+        {
+            participant.IsRegistered = update.IsRegistered;
+            participant.IsWaitlisted = update.IsWaitlisted;
+            participant.IsDepositConfirmed = update.IsDepositConfirmed;
+        }
+        else
+        {
+            // If a cancelled user is re-registering
+            if (!participant.IsRegistered && update.IsRegistered)
+            {
+                participant.IsRegistered = true;
+                participant.CreatedAt = DateTime.UtcNow;
+                // Re-calculate waitlist would go here, but for now we keep it simple
+            }
+        }
+
+        // NEW: Update password if provided
+        bool passwordChanged = false;
+        if (!string.IsNullOrEmpty(update.Password))
+        {
+            participant.Password = BCrypt.Net.BCrypt.HashPassword(update.Password);
+            passwordChanged = true;
+        }
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!ParticipantExists(id)) return NotFound();
+            else throw;
+        }
+
+        if (passwordChanged && !isAdmin)
+        {
+            return Ok(new { passwordChanged = true, message = "비밀번호가 변경되었습니다. 다시 로그인해주세요." });
+        }
+
+        return NoContent();
+    }
+
+    [HttpPost("{id}/reset-password")]
+    [Authorize]
+    public async Task<IActionResult> ResetPassword(int id)
+    {
+        // Only admins can reset passwords
+        bool isAdmin = User.Claims.Any(c => c.Type == ClaimTypes.Role && c.Value == "admin");
+        if (!isAdmin) return Forbid();
+
+        var p = await _context.Participants.FindAsync(id);
+        if (p == null) return NotFound();
+
+        var phone = _encryption.Decrypt(p.PhoneNumber) ?? "";
+        var normalizedPhone = new string(phone.Where(char.IsDigit).ToArray());
+        var newPassword = normalizedPhone.Length >= 4 ? normalizedPhone[^4..] : "0000";
+        
+        p.Password = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = $"비밀번호가 초기화되었습니다. (초기 비밀번호: {newPassword})" });
+    }
+
+    // POST: api/Participants/5/cancel (For Participant Self-Cancellation, Protected by JWT)
+    [HttpPost("{id}/cancel")]
+    [Authorize]
+    public async Task<IActionResult> CancelRegistration(int id, [FromBody] CancelRequestDto? request)
+    {
+        var participant = await _context.Participants.FindAsync(id);
+        if (participant == null) return NotFound();
+
+        // Security: Only Admin or the owner can cancel
+        bool isAdmin = User.Claims.Any(c => c.Type == ClaimTypes.Role && c.Value == "admin");
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        bool isOwner = userIdClaim != null && userIdClaim == id.ToString();
+
+        if (!isAdmin && !isOwner)
+        {
+            return Forbid();
+        }
+
+        // Additional Security: If NOT admin, verify password if provided
+        if (!isAdmin && request != null && !string.IsNullOrEmpty(request.Password))
+        {
+            if (!BCrypt.Net.BCrypt.Verify(request.Password, participant.Password))
+            {
+                return Unauthorized("비밀번호가 일치하지 않습니다.");
+            }
+        }
+
+        if (!participant.IsRegistered)
+        {
+            return BadRequest("이미 신청되지 않은 상태입니다.");
+        }
+
+        // Reset registration fields but keep the core identity
+        participant.IsRegistered = false;
+        participant.StudentId = _encryption.Encrypt("");
+        participant.ParticipationCount = 0;
+        participant.MemoryOrExpectation = null;
+        participant.OneLineExpectation = null;
+        participant.MidJoinDetails = null;
+        participant.Transportation = "Walk";
+        participant.IsCarpoolAvailable = false;
+        participant.CarpoolSeats = 0;
+        participant.DepartureArea = null;
+        participant.Allergies = null;
+        participant.Remarks = null;
+        participant.IsMilitaryPriority = false;
+        participant.MilitaryStatus = null;
+        participant.CreatedAt = DateTime.UtcNow; // Record cancellation time or reset
+
+        await _context.SaveChangesAsync();
+        return Ok(new { message = "신청이 취소되었습니다." });
+    }
+
+    // DELETE: api/Participants/5 (ADMIN ONLY)
+    [HttpDelete("{id}")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> DeleteParticipant(int id)
+    {
+        var participant = await _context.Participants.FindAsync(id);
+        if (participant == null) return NotFound();
+
+        _context.Participants.Remove(participant);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    private bool ParticipantExists(int id)
+    {
+        return _context.Participants.Any(e => e.Id == id);
+    }
+}
+
+public class CancelRequestDto
+{
+    public string? Password { get; set; }
+}
+
+public class ParticipantRegistrationDto
+{
+    public string Name { get; set; } = string.Empty;
+    public int Generation { get; set; }
+    public string Password { get; set; } = string.Empty; // Phone Last 4
+    public ParticipantType Type { get; set; }
+    public string? StudentId { get; set; }
+    public string PhoneNumber { get; set; } = string.Empty;
+    public int ParticipationCount { get; set; }
+    public string? MemoryOrExpectation { get; set; }
+    public string ParticipationSchedule { get; set; } = "Full";
+    public string? MidJoinDetails { get; set; }
+    public string Transportation { get; set; } = "Walk";
+    public bool IsCarpoolAvailable { get; set; }
+    public int CarpoolSeats { get; set; }
+    public string? DepartureArea { get; set; }
+    public string? Allergies { get; set; }
+    public string? Remarks { get; set; }
+    public string? OneLineExpectation { get; set; }
+    public bool HasDriverLicense { get; set; }
+    public string? DriverLicenseType { get; set; }
+    public bool CanDrive { get; set; }
+    public string? DrivingExperience { get; set; }
+    public bool IsMilitaryPriority { get; set; }
+    public string? MilitaryStatus { get; set; }
+}
+
+public class ParticipantUpdateDto : ParticipantRegistrationDto
+{
+    public bool IsRegistered { get; set; }
+    public bool IsWaitlisted { get; set; }
+    public bool IsDepositConfirmed { get; set; }
+    public string? CurrentPassword { get; set; }
+}
+
+public class ParticipantLoginDto
+{
+    public string Name { get; set; } = string.Empty;
+    public int Generation { get; set; }
+    public string Password { get; set; } = string.Empty;
+}

@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제 5회 빅이큐 총동문 MT</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
+<style>
+:root {
+  --blue:#76aed9;--blue-light:#94bfe2;--blue-soft:#EEF4FB;--blue-deep:#2e7ab0;--blue-pale:#EEF5FB;--blue-mid:#b0cfe8;
+  --army:#3D7A5A;--army-soft:#E6F2EC;--army-light:#5B9E78;
+  --bg:#FFFFFF;--bg2:#EEF5FB;--bg3:#cce0f3;--card:#FFFFFF;
+  --text:#0A141A;--text2:#1A4A6B;--text3:#6A9BB5;
+  --border:rgba(118,174,217,0.18);--shadow:0 4px 24px rgba(118,174,217,0.10);--shadow-sm:0 2px 12px rgba(118,174,217,0.08);
+}
+[data-theme="dark"] {
+  --bg:#0A0F1E;--bg2:#111829;--bg3:#182038;--card:#111829;
+  --text:#FFFFFF;--text2:#FFFFFF;--text3:#FFFFFF;
+  --border:rgba(118,174,217,0.35);--shadow:0 4px 24px rgba(0,0,0,0.4);--shadow-sm:0 2px 12px rgba(0,0,0,0.3);
+  --blue-pale:#1A0808;--blue-soft:#3A1210;--army-soft:#122A1F;
+  --blue:#76aed9;--blue-light:#94bfe2;--blue-deep:#2e7ab0;--blue-mid:#b0cfe8;
+  --army:#5BBF8A;--army-light:#7DDBA8;
+}
+[data-theme="dark"] * { color: inherit; }
+[data-theme="dark"] body { color: #FFFFFF; }
+[data-theme="dark"] .text2-override { color: #FFFFFF !important; }
+
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Pretendard Variable',Pretendard,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;transition:background .3s,color .3s;overflow-x:hidden;}
+
+header{position:fixed;top:0;left:0;right:0;z-index:100;border-bottom:1px solid var(--border);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);background:rgba(255,255,255,0.88);transition:background .3s;}
+[data-theme="dark"] header{background:rgba(10,15,30,0.92);}
+.header-inner{max-width:800px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:13px 20px;}
+.logo-text{font-size:14px;font-weight:700;color:var(--blue);}
+[data-theme="dark"] .logo-text{color:#FFFFFF;}
+.theme-btn{width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border);background:var(--bg2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:17px;transition:all .2s;}
+.theme-btn:hover{background:var(--blue-soft);transform:scale(1.08);}
+
+main{max-width:800px;margin:0 auto;padding:76px 20px 60px;}
+
+.hero{text-align:center;padding:36px 0 28px;}
+.hero-badge{display:inline-flex;align-items:center;gap:6px;background:var(--blue-soft);color:var(--blue-deep);font-size:12px;font-weight:700;padding:5px 14px;border-radius:100px;margin-bottom:14px;}
+[data-theme="dark"] .hero-badge{color:#FFFFFF;background:rgba(118,174,217,0.20);}
+.hero h1{font-size:clamp(24px,6vw,40px);font-weight:800;line-height:1.2;letter-spacing:-1px;margin-bottom:10px;color:var(--text);}
+.hero h1 span{color:var(--blue);}
+.hero-sub{font-size:14px;color:var(--text3);margin-bottom:24px;}
+[data-theme="dark"] .hero-sub{color:#FFFFFF;}
+
+.dday-block{display:inline-flex;align-items:center;gap:10px;background:var(--card);border:2px solid var(--blue);border-radius:16px;padding:12px 28px;margin-bottom:22px;box-shadow:var(--shadow-sm);}
+.dday-label{font-size:13px;color:var(--text3);font-weight:600;}
+[data-theme="dark"] .dday-label{color:#FFFFFF;}
+.dday-num{font-size:34px;font-weight:800;color:var(--blue);letter-spacing:-2px;font-variant-numeric:tabular-nums;}
+.dday-unit{font-size:14px;color:var(--text2);font-weight:600;}
+
+.info-row{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-bottom:24px;}
+.info-chip{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:100px;padding:7px 14px;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;transition:all .2s;}
+.info-chip:hover{border-color:var(--blue);background:var(--blue-soft);}
+[data-theme="dark"] .info-chip{color:#FFFFFF;}
+
+.btn-apply{display:inline-flex;align-items:center;gap:8px;background:var(--blue);color:#0A141A;font-size:16px;font-weight:700;padding:15px 40px;border-radius:14px;border:none;cursor:pointer;box-shadow:0 4px 20px rgba(118,174,217,0.45);transition:all .2s;letter-spacing:-.3px;font-family:inherit;}
+.btn-apply:hover{background:var(--blue-deep);transform:translateY(-2px);}
+.btn-apply:active{transform:translateY(0);}
+[data-theme="dark"] .btn-apply{background:var(--blue);color:#0A141A;}
+
+section{margin-bottom:26px;}
+section:nth-child(1){animation:fadeIn .5s .05s both;}section:nth-child(2){animation:fadeIn .5s .10s both;}
+section:nth-child(3){animation:fadeIn .5s .15s both;}section:nth-child(4){animation:fadeIn .5s .20s both;}
+section:nth-child(5){animation:fadeIn .5s .25s both;}section:nth-child(6){animation:fadeIn .5s .30s both;}
+section:nth-child(7){animation:fadeIn .5s .35s both;}
+
+.section-title{font-size:12px;font-weight:700;color:var(--blue);letter-spacing:.8px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+[data-theme="dark"] .section-title{color:#FFFFFF;}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:20px;box-shadow:var(--shadow-sm);transition:border .2s;}
+.card:hover{border-color:var(--blue-mid);}
+[data-theme="dark"] .card{background:var(--bg2);}
+
+.bar-wrap{margin-bottom:12px;}
+.bar-label{display:flex;justify-content:space-between;font-size:12px;color:var(--text3);margin-bottom:5px;font-weight:500;}
+[data-theme="dark"] .bar-label{color:#FFFFFF;}
+.bar-track{height:10px;background:var(--bg3);border-radius:100px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--blue-light),var(--blue));width:0%;}
+.bar-fill.army-bar{background:linear-gradient(90deg,var(--army-light),var(--army));}
+
+.status-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.status-count{font-size:24px;font-weight:800;color:var(--blue);}
+[data-theme="dark"] .status-count{color:#FFFFFF;}
+.btn-detail{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;width:100%;justify-content:center;margin-top:14px;transition:all .2s;font-family:inherit;}
+.btn-detail:hover{background:var(--blue-soft);border-color:var(--blue);color:var(--blue);}
+[data-theme="dark"] .btn-detail{color:#FFFFFF;background:var(--bg3);}
+[data-theme="dark"] .btn-detail:hover{color:#FFFFFF;background:rgba(107,143,212,0.3);}
+
+/* MARQUEE */
+.marquee-outer{overflow:hidden;position:relative;}
+.marquee-outer::before,.marquee-outer::after{content:'';position:absolute;top:0;bottom:0;width:40px;z-index:2;pointer-events:none;}
+.marquee-outer::before{left:0;background:linear-gradient(90deg,var(--bg),transparent);}
+.marquee-outer::after{right:0;background:linear-gradient(270deg,var(--bg),transparent);}
+.marquee-track{display:flex;gap:12px;animation:marquee 32s linear infinite;width:max-content;}
+.marquee-track:hover{animation-play-state:paused;}
+@keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.exp-chip{flex-shrink:0;background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:12px 16px;font-size:13px;color:var(--text2);line-height:1.5;width:210px;}
+[data-theme="dark"] .exp-chip{color:#FFFFFF;}
+.exp-chip .exp-author{font-size:11px;color:var(--text3);margin-top:6px;font-weight:600;}
+[data-theme="dark"] .exp-chip .exp-author{color:#FFFFFF;}
+
+/* SCHEDULE 한줄 3칸 */
+.schedule-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+@media(max-width:500px){.schedule-row{grid-template-columns:1fr;}}
+.schedule-day{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px;cursor:pointer;transition:all .2s;text-align:center;}
+.schedule-day:hover{border-color:var(--blue);background:var(--blue-pale);}
+[data-theme="dark"] .schedule-day{background:var(--bg3);}
+[data-theme="dark"] .schedule-day:hover{background:rgba(107,143,212,0.2);}
+.day-badge{display:inline-block;background:var(--blue-soft);color:var(--blue-deep);font-size:10px;font-weight:700;padding:3px 10px;border-radius:100px;margin-bottom:8px;}
+[data-theme="dark"] .day-badge{color:#FFFFFF;background:rgba(107,143,212,0.3);}
+.schedule-day h4{font-size:13px;font-weight:700;margin-bottom:4px;color:var(--text);}
+.schedule-day p{font-size:11px;color:var(--text3);line-height:1.5;}
+[data-theme="dark"] .schedule-day p{color:#FFFFFF;}
+.schedule-day .day-emoji{font-size:24px;margin-bottom:6px;}
+.schedule-tap{font-size:11px;color:var(--blue);margin-top:8px;font-weight:600;}
+[data-theme="dark"] .schedule-tap{color:#FFFFFF;}
+
+/* COHORT */
+.cohort-card{display:flex;align-items:center;gap:16px;cursor:pointer;}
+.cohort-icon{width:50px;height:50px;border-radius:14px;background:var(--blue-soft);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;}
+[data-theme="dark"] .cohort-icon{background:rgba(118,174,217,0.20);}
+.cohort-text h3{font-size:15px;font-weight:700;margin-bottom:3px;color:var(--text);}
+.cohort-text p{font-size:13px;color:var(--text3);}
+[data-theme="dark"] .cohort-text p{color:#FFFFFF;}
+.cohort-arrow{margin-left:auto;width:30px;height:30px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--blue);flex-shrink:0;}
+[data-theme="dark"] .cohort-arrow{color:#FFFFFF;background:rgba(107,143,212,0.3);}
+
+/* ARMY */
+.army-badge-tag{display:inline-flex;align-items:center;gap:5px;background:var(--army-soft);color:var(--army);font-size:12px;font-weight:700;padding:4px 12px;border-radius:100px;margin-bottom:10px;}
+[data-theme="dark"] .army-badge-tag{color:#FFFFFF;background:rgba(91,191,138,0.2);}
+.army-desc{font-size:13px;color:var(--text3);margin-bottom:14px;line-height:1.6;}
+[data-theme="dark"] .army-desc{color:#FFFFFF;}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.52);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);justify-content:center;align-items:flex-end;}
+.modal-overlay.active{display:flex;}
+.modal-sheet{background:var(--card);border-radius:24px 24px 0 0;width:100%;max-width:800px;max-height:88vh;overflow-y:auto;padding:24px 24px 44px;animation:slideUp .28s cubic-bezier(0.34,1.1,0.64,1);position:relative;scrollbar-width:none;-ms-overflow-style:none;clip-path:inset(0 round 24px 24px 0 0);-webkit-clip-path:inset(0 round 24px 24px 0 0);overscroll-behavior:none;}
+[data-theme="dark"] .modal-sheet{background:var(--bg2);}
+.modal-sheet::-webkit-scrollbar{display:none;}
+@keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-handle{width:40px;height:4px;border-radius:2px;background:var(--border);margin:0 auto 20px;}
+.modal-title{font-size:20px;font-weight:800;margin-bottom:5px;color:var(--text);}
+.modal-sub{font-size:13px;color:var(--text3);margin-bottom:22px;}
+[data-theme="dark"] .modal-sub{color:#FFFFFF;}
+.modal-close{position:absolute;top:18px;right:20px;width:30px;height:30px;border-radius:50%;background:var(--bg3);border:none;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;color:var(--text2);}
+[data-theme="dark"] .modal-close{color:#FFFFFF;background:var(--bg3);}
+
+/* APPLY TYPE BUTTONS */
+.type-btns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;}
+.type-btn{flex:1;min-width:72px;padding:10px 6px;background:var(--bg2);border:1.5px solid var(--border);border-radius:12px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;text-align:center;transition:all .18s;font-family:inherit;}
+.type-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-soft);}
+.type-btn.active{background:var(--blue);color:#fff;border-color:var(--blue);}
+[data-theme="dark"] .type-btn{color:#FFFFFF;background:var(--bg3);}
+[data-theme="dark"] .type-btn:hover{color:#FFFFFF;background:rgba(107,143,212,0.3);}
+
+/* FORM */
+.form-section{display:none;}
+.form-section.active{display:block;}
+.form-group{margin-bottom:14px;}
+.form-group label{display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;}
+[data-theme="dark"] .form-group label{color:#FFFFFF;}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:11px 14px;background:var(--bg2);border:1.5px solid var(--border);border-radius:12px;font-family:inherit;font-size:14px;color:var(--text);transition:border .2s;outline:none;appearance:none;-webkit-appearance:none;}
+[data-theme="dark"] .form-group input,[data-theme="dark"] .form-group select,[data-theme="dark"] .form-group textarea{background:var(--bg3);color:#FFFFFF;border-color:rgba(100,140,220,0.4);}
+[data-theme="dark"] .form-group input::placeholder,[data-theme="dark"] .form-group textarea::placeholder{color:#FFFFFF;}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--blue);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+@media(max-width:480px){.form-row{grid-template-columns:1fr;}}
+.form-group textarea{resize:vertical;min-height:72px;}
+
+.toggle-row{display:flex;gap:8px;margin-bottom:6px;}
+.toggle-btn{flex:1;padding:9px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg2);font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit;transition:all .18s;}
+.toggle-btn.active{background:var(--blue);color:#fff;border-color:var(--blue);}
+[data-theme="dark"] .toggle-btn{color:#FFFFFF;background:var(--bg3);}
+.sub-input{display:none;margin-top:6px;}
+.sub-input.show{display:block;}
+
+.army-notice{background:var(--army-soft);border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:var(--army);font-weight:600;line-height:1.5;}
+[data-theme="dark"] .army-notice{background:rgba(91,191,138,0.15);color:#7DDBA8;}
+
+.btn-submit{width:100%;padding:15px;background:var(--blue);color:#0A141A;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;margin-top:10px;transition:all .2s;font-family:inherit;}
+.btn-submit:hover{background:var(--blue-deep);}
+[data-theme="dark"] .btn-submit{background:var(--blue);color:#0A141A;}
+
+/* 회비 현황 */
+.fee-badge{display:inline-flex;align-items:center;gap:5px;background:#FFF4E0;color:#7A5000;font-size:12px;font-weight:700;padding:4px 12px;border-radius:100px;margin-bottom:10px;}
+[data-theme="dark"] .fee-badge{background:rgba(255,170,0,0.2);color:#FFB830;}
+.fee-desc{font-size:13px;color:var(--text3);margin-bottom:14px;line-height:1.6;}
+[data-theme="dark"] .fee-desc{color:#FFFFFF;}
+.fee-tabs{display:flex;gap:6px;margin-bottom:14px;}
+.fee-tab{flex:1;padding:8px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg2);font-size:13px;font-weight:700;color:var(--text2);cursor:pointer;text-align:center;transition:all .18s;font-family:inherit;}
+.fee-tab.active-paid{background:#22C55E;color:#fff;border-color:#22C55E;}
+.fee-tab.active-unpaid{background:#EF4444;color:#fff;border-color:#EF4444;}
+[data-theme="dark"] .fee-tab{color:#FFFFFF;background:var(--bg3);}
+.fee-list{display:flex;flex-direction:column;gap:8px;}
+.fee-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:12px;background:var(--bg2);border:1px solid var(--border);}
+[data-theme="dark"] .fee-item{background:var(--bg3);}
+.fee-item-left{display:flex;align-items:center;gap:10px;}
+.fee-item-cohort{font-size:11px;font-weight:700;color:var(--blue);background:var(--blue-soft);padding:2px 8px;border-radius:100px;}
+[data-theme="dark"] .fee-item-cohort{color:#FFFFFF;background:rgba(107,143,212,0.3);}
+.fee-item-name{font-size:14px;font-weight:600;color:var(--text);}
+[data-theme="dark"] .fee-item-name{color:#FFFFFF;}
+.fee-badge-paid{font-size:11px;font-weight:700;padding:3px 10px;border-radius:100px;}
+.paid{background:#DCFCE7;color:#16A34A;}
+.unpaid{background:#FEE2E2;color:#DC2626;}
+[data-theme="dark"] .paid{background:rgba(34,197,94,0.2);color:#4ADE80;}
+[data-theme="dark"] .unpaid{background:rgba(239,68,68,0.2);color:#F87171;}
+
+/* STATUS (기수별 온도계) */
+.cohort-thermo-wrap{display:flex;flex-direction:column;gap:14px;margin-bottom:20px;}
+.cohort-thermo-row{display:flex;align-items:center;gap:10px;}
+.cohort-thermo-label{min-width:30px;font-size:12px;font-weight:700;color:var(--blue);text-align:right;}
+[data-theme="dark"] .cohort-thermo-label{color:#FFFFFF;}
+.thermo-track{flex:1;height:22px;background:var(--bg3);border-radius:100px;overflow:hidden;position:relative;}
+.thermo-fill{height:100%;border-radius:100px;transition:width .9s cubic-bezier(0.4,0,0.2,1);display:flex;align-items:center;padding-left:8px;}
+.thermo-count{font-size:11px;font-weight:700;color:#fff;white-space:nowrap;}
+.cohort-thermo-num{min-width:36px;font-size:12px;font-weight:700;color:var(--text2);text-align:left;}
+[data-theme="dark"] .cohort-thermo-num{color:#FFFFFF;}
+.btn-notify{display:flex;align-items:center;gap:5px;background:var(--blue-soft);border:1px solid var(--blue);border-radius:100px;padding:4px 12px;font-size:11px;font-weight:700;color:var(--blue);cursor:pointer;white-space:nowrap;transition:all .18s;font-family:inherit;}
+.btn-notify:hover{background:var(--blue);color:#fff;}
+[data-theme="dark"] .btn-notify{color:#FFFFFF;background:rgba(107,143,212,0.2);border-color:rgba(107,143,212,0.5);}
+[data-theme="dark"] .btn-notify:hover{background:var(--blue);color:#FFFFFF;}
+
+/* STAT */
+.stat-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);}
+.stat-row:last-child{border-bottom:none;}
+.stat-left{display:flex;align-items:center;gap:10px;}
+.stat-dot{width:9px;height:9px;border-radius:50%;background:var(--blue);}
+.stat-dot.army-dot{background:var(--army);}
+.stat-name{font-size:14px;font-weight:600;color:var(--text);}
+[data-theme="dark"] .stat-name{color:#FFFFFF;}
+.stat-val{font-size:14px;font-weight:700;color:var(--blue);}
+[data-theme="dark"] .stat-val{color:#FFFFFF;}
+.stat-val.army-val{color:var(--army);}
+
+/* TIMELINE */
+.tl-item{display:flex;gap:12px;margin-bottom:14px;align-items:flex-start;}
+.tl-time{min-width:48px;font-size:12px;font-weight:700;color:var(--blue);text-align:right;padding-top:2px;}
+[data-theme="dark"] .tl-time{color:#FFFFFF;}
+.tl-dots{display:flex;flex-direction:column;align-items:center;}
+.tl-dot{width:9px;height:9px;border-radius:50%;background:var(--blue);flex-shrink:0;margin-top:3px;}
+.tl-line{width:2px;flex:1;background:var(--border);min-height:20px;}
+.tl-body h4{font-size:14px;font-weight:700;margin-bottom:2px;color:var(--text);}
+[data-theme="dark"] .tl-body h4{color:#FFFFFF;}
+.tl-body p{font-size:12px;color:var(--text3);}
+[data-theme="dark"] .tl-body p{color:#FFFFFF;}
+
+/* COHORT TABLE */
+.cohort-filter-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.cohort-filter-btn{padding:6px 14px;border-radius:100px;border:1.5px solid var(--border);background:var(--bg2);font-size:12px;font-weight:700;color:var(--text2);cursor:pointer;transition:all .18s;font-family:inherit;}
+.cohort-filter-btn.active{background:var(--blue);color:#fff;border-color:var(--blue);}
+[data-theme="dark"] .cohort-filter-btn{color:#FFFFFF;background:var(--bg3);}
+.cohort-table{width:100%;border-collapse:collapse;font-size:13px;}
+.cohort-table th{background:var(--bg3);color:var(--text2);font-weight:700;padding:9px 12px;text-align:left;}
+[data-theme="dark"] .cohort-table th{color:#FFFFFF;background:var(--bg3);}
+.cohort-table th:first-child{border-radius:8px 0 0 8px;}
+.cohort-table th:last-child{border-radius:0 8px 8px 0;}
+.cohort-table td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text);}
+[data-theme="dark"] .cohort-table td{color:#FFFFFF;}
+.cohort-table tr:last-child td{border-bottom:none;}
+
+/* ARMY BENEFIT */
+.benefit-item{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:10px;}
+[data-theme="dark"] .benefit-item{background:var(--bg3);}
+.benefit-item h4{font-size:14px;font-weight:700;margin-bottom:4px;color:var(--text);}
+[data-theme="dark"] .benefit-item h4{color:#FFFFFF;}
+.benefit-item p{font-size:13px;color:var(--text3);line-height:1.6;}
+[data-theme="dark"] .benefit-item p{color:#FFFFFF;}
+.army-alert{background:#FFF4E0;border:1.5px solid #FFAA00;border-radius:12px;padding:13px 16px;margin-top:14px;font-size:13px;color:#7A5000;font-weight:600;line-height:1.6;}
+[data-theme="dark"] .army-alert{background:#2A1C00;border-color:#8B6500;color:#FFB830;}
+
+/* 주차 안내 */
+.transport-note{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-top:8px;font-size:12px;color:var(--text3);line-height:1.6;}
+[data-theme="dark"] .transport-note{background:var(--bg3);color:#FFFFFF;}
+.transport-note strong{color:var(--text2);font-weight:700;}
+[data-theme="dark"] .transport-note strong{color:#FFFFFF;}
+
+/* 탑승 가능 select */
+.carpool-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
+.carpool-row.hidden{display:none;}
+
+.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:11px 22px;border-radius:100px;font-size:14px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;white-space:nowrap;pointer-events:none;}
+[data-theme="dark"] .toast{background:#FFFFFF;color:#0A0F1E;}
+.toast.show{opacity:1;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+/* 위치 없음 안내 */
+.location-tbd{background:var(--bg2);border:1px dashed var(--border);border-radius:14px;padding:20px;text-align:center;margin-bottom:16px;}
+[data-theme="dark"] .location-tbd{background:var(--bg3);}
+.location-tbd p{font-size:13px;color:var(--text3);margin-bottom:6px;}
+[data-theme="dark"] .location-tbd p{color:#FFFFFF;}
+.location-tbd strong{font-size:14px;color:var(--text);display:block;margin-bottom:4px;}
+[data-theme="dark"] .location-tbd strong{color:#FFFFFF;}
+.btn-naver-map{display:inline-flex;align-items:center;gap:6px;background:#03C75A;color:#fff;font-size:13px;font-weight:700;padding:10px 20px;border-radius:10px;border:none;cursor:pointer;font-family:inherit;transition:all .2s;text-decoration:none;}
+.btn-naver-map:hover{background:#02A84A;transform:translateY(-1px);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <span class="logo-text">☀️ 빅이큐 MT 2026</span>
+    <button class="theme-btn" id="themeBtn">🌙</button>
+  </div>
+</header>
+
+<main>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">✨ 5th Anniversary</div>
+  <h1>제 5회 빅이큐<br><span>총동문 MT</span></h1>
+  <p class="hero-sub">졸업이든 휴학이든 군대든 — 배구부였다면 누구나 환영해요 🏐</p>
+  <div class="dday-block">
+    <span class="dday-label">D-</span>
+    <span class="dday-num" id="ddayNum">--</span>
+    <span class="dday-unit">일</span>
+  </div>
+  <div class="info-row">
+    <div class="info-chip">📅 2025년 8월 22일 (금) ~ 24일 (일)</div>
+    <div class="info-chip" onclick="openModal('location')" title="위치 보기">📍 가평 OO 리조트</div>
+    <div class="info-chip" onclick="openModal('fee')">💳 회비 미정 (약 13만원)</div>
+  </div>
+  <button class="btn-apply" onclick="openModal('apply')">✍️ 신청하기</button>
+</section>
+
+<!-- 기대평 -->
+<section>
+  <div class="section-title">기대평</div>
+  <div class="marquee-outer">
+    <div class="marquee-track" id="marqueeTrack"></div>
+  </div>
+</section>
+
+<!-- 신청 현황 -->
+<section>
+  <div class="section-title">실시간 신청 현황</div>
+  <div class="card">
+    <div class="status-header">
+      <div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:2px">총 신청 인원</div>
+        <span class="status-count" id="totalCount">0명</span>
+        <span style="font-size:13px;color:var(--text3)" id="totalMax"> / 24명 정원</span>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:12px;color:var(--text3)">마감까지</div>
+        <div style="font-size:18px;font-weight:800;color:var(--blue)" id="remainCount">24명</div>
+      </div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-label"><span>🙋 일반 신청</span><span style="font-weight:700;color:var(--blue)" id="genLabel">0명 / 20명</span></div>
+      <div class="bar-track"><div class="bar-fill" id="barGen"></div></div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-label"><span>🫡 군인 우선 예약</span><span style="font-weight:700;color:var(--army)" id="armyLabel">0명 / 4명</span></div>
+      <div class="bar-track"><div class="bar-fill army-bar" id="barArmy"></div></div>
+    </div>
+    <button class="btn-detail" onclick="openModal('status')">📊 기수별 신청 현황 보기 →</button>
+  </div>
+</section>
+
+<!-- 일정 한줄 3칸 -->
+<section>
+  <div class="section-title">일정</div>
+  <div class="schedule-row">
+    <div class="schedule-day" onclick="openModal('sched1')">
+      <div class="day-emoji">🌆</div>
+      <div class="day-badge">DAY 1</div>
+      <h4>8월 22일 금</h4>
+      <p>이동 · 입실<br>환영 파티 🎉</p>
+      <div class="schedule-tap">탭하여 자세히 →</div>
+    </div>
+    <div class="schedule-day" onclick="openModal('sched2')">
+      <div class="day-emoji">🏕️</div>
+      <div class="day-badge">DAY 2</div>
+      <h4>8월 23일 토</h4>
+      <p>레크레이션<br>바베큐 🔥</p>
+      <div class="schedule-tap">탭하여 자세히 →</div>
+    </div>
+    <div class="schedule-day" onclick="openModal('sched3')">
+      <div class="day-emoji">🌊</div>
+      <div class="day-badge">DAY 3</div>
+      <h4>8월 24일 일</h4>
+      <p>단체활동<br>폐회식 · 귀가</p>
+      <div class="schedule-tap">탭하여 자세히 →</div>
+    </div>
+  </div>
+</section>
+
+<!-- 기수/동기 -->
+<section>
+  <div class="section-title">기수 / 동기 확인</div>
+  <div class="card" style="cursor:pointer" onclick="openModal('cohort')">
+    <div class="cohort-card">
+      <div class="cohort-icon">👥</div>
+      <div class="cohort-text">
+        <h3>내 기수 · 동기 확인하기</h3>
+        <p>기수별로 모아보거나 이름으로 찾아보세요</p>
+      </div>
+      <div class="cohort-arrow">→</div>
+    </div>
+  </div>
+</section>
+
+<!-- 군인 우대 -->
+<section>
+  <div class="section-title">군인 우대 혜택</div>
+  <div class="card">
+    <div class="army-badge-tag">🫡 군인 우대</div>
+    <p class="army-desc">국방을 책임지는 군인 부원들을 위해 특별 우대를 해드립니다 :)</p>
+    <div class="bar-wrap">
+      <div class="bar-label"><span>🫡 군인 우선 예약 현황</span><span style="font-weight:700;color:var(--army)" id="armyMainLabel">0명 / 4명</span></div>
+      <div class="bar-track"><div class="bar-fill army-bar" id="barArmyMain"></div></div>
+    </div>
+    <button class="btn-detail" onclick="openModal('army')">🫡 군인 우대 혜택 자세히 보기 →</button>
+  </div>
+</section>
+
+</main>
+
+<!-- ====== MODALS ====== -->
+
+<!-- APPLY -->
+<div class="modal-overlay" id="modal-apply" onclick="closeBg(event,'apply')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div>
+  <button class="modal-close" onclick="closeModal('apply')">✕</button>
+  <div class="modal-title">✍️ MT 신청서</div>
+  <div class="modal-sub">제 5회 빅이큐 총동문 MT · 8월 22–24일</div>
+
+  <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">본인 소속을 선택해주세요</div>
+  <div class="type-btns">
+    <button class="type-btn active" onclick="switchType(this,'student')">📗 재학생</button>
+    <button class="type-btn" onclick="switchType(this,'grad')">🎓 졸업생</button>
+    <button class="type-btn" onclick="switchType(this,'leave')">📚 휴학생</button>
+    <button class="type-btn" onclick="switchType(this,'army')">🫡 군인</button>
+    <button class="type-btn" onclick="switchType(this,'etc')">👋 기타</button>
+  </div>
+
+  <!-- 재학생/휴학생 폼 (form-SL) -->
+  <div class="form-section active" id="form-SL">
+    <div class="form-row">
+      <div class="form-group"><label>이름</label><input type="text" placeholder="홍길동"></div>
+      <div class="form-group"><label>기수</label><select><option value="">선택</option><option>1기</option><option>2기</option><option>3기</option><option>4기</option><option>5기</option><option>6기</option><option>7기</option></select></div>
+    </div>
+    <div class="form-group"><label>학번</label><input type="text" placeholder="예: 2022123456"></div>
+    <div class="form-group"><label>연락처</label><input type="tel" placeholder="010-0000-0000"></div>
+    <div class="form-group">
+      <label>빅이큐 MT 참여 횟수</label>
+      <select><option value="">선택</option><option>0번 (처음이에요!)</option><option>1번</option><option>2번</option><option>3번</option><option>4번</option></select>
+    </div>
+    <div class="form-group"><label>이번 MT에 한 마디 남겨봐요 🏐</label><textarea id="expSL" placeholder="기대되는 것, 꼭 하고 싶은 것, 아니면 그냥 한 마디도 좋아요!"></textarea></div>
+    <div class="form-group">
+      <label>참가 일정</label>
+      <div class="toggle-row">
+        <button class="toggle-btn active" onclick="toggleSchedule(this,'sl-join')">전일정 참여</button>
+        <button class="toggle-btn" onclick="toggleSchedule(this,'sl-join')">중간 합류</button>
+      </div>
+      <div class="sub-input" id="sl-join"><input type="text" placeholder="언제 합류 예정인지 알려주세요 (예: 8/23 오후)"></div>
+    </div>
+    <div class="form-group">
+      <label>이동 수단</label>
+      <div class="toggle-row" id="sl-transport-row">
+        <button class="toggle-btn active" onclick="toggleTransport(this,'sl')">🚗 자차</button>
+        <button class="toggle-btn" onclick="toggleTransport(this,'sl')">🚌 대중교통 / 뚜벅이</button>
+      </div>
+      <div class="transport-note" id="sl-transport-note-car">
+        <strong>🚗 자차 이용 시</strong> — 다른 인원을 태워주실 수 있나요?
+        <div class="carpool-row" id="sl-carpool-row" style="margin-top:8px;">
+          <select id="sl-carpool"><option value="">동승 가능 여부</option><option value="yes">태워줄 수 있어요 😊</option><option value="no">나 혼자만 이동해요</option></select>
+          <select id="sl-carpool-num" style="display:none"><option value="">몇 명까지?</option><option>1명</option><option>2명</option><option>3명</option><option>4명 이상</option></select>
+        </div>
+      </div>
+      <div class="transport-note" id="sl-transport-note-pub" style="display:none">
+        <strong>🚌 대중교통 / 뚜벅이</strong> — 버스, 지하철, 도보 등 모두 포함이에요. 자차 카풀이 필요하면 운영진에게 말씀해주세요!
+      </div>
+    </div>
+    <div class="form-group"><label>출발 지역</label><input type="text" placeholder="예: 서울시 강남구, 수원시 영통동 등"></div>
+    <div class="form-group"><label>음식 알레르기 및 특이사항</label><input type="text" placeholder="없으면 비워두세요"></div>
+    <div class="form-group"><label>기타 (하고 싶은 말)</label><textarea placeholder="운영진에게 하고 싶은 말, 요청사항 등 자유롭게!"></textarea></div>
+    <button class="btn-submit" onclick="doSubmit('SL')">🎉 신청 완료하기</button>
+  </div>
+
+  <!-- 졸업생/기타 폼 (form-GE) -->
+  <div class="form-section" id="form-GE">
+    <div class="form-row">
+      <div class="form-group"><label>이름</label><input type="text" placeholder="홍길동"></div>
+      <div class="form-group"><label>기수</label><select><option value="">선택</option><option>1기</option><option>2기</option><option>3기</option><option>4기</option><option>5기</option><option>6기</option><option>7기</option></select></div>
+    </div>
+    <div class="form-group"><label>연락처</label><input type="tel" placeholder="010-0000-0000"></div>
+    <div class="form-group">
+      <label>빅이큐 MT 참여 횟수</label>
+      <select><option value="">선택</option><option>0번 (처음이에요!)</option><option>1번</option><option>2번</option><option>3번</option><option>4번</option></select>
+    </div>
+    <div class="form-group"><label>이번 MT에 한 마디 남겨봐요 🏐</label><textarea id="expGE" placeholder="기대되는 것, 꼭 하고 싶은 것, 아니면 그냥 한 마디도 좋아요!"></textarea></div>
+    <div class="form-group">
+      <label>참가 일정</label>
+      <div class="toggle-row">
+        <button class="toggle-btn active" onclick="toggleSchedule(this,'ge-join')">전일정 참여</button>
+        <button class="toggle-btn" onclick="toggleSchedule(this,'ge-join')">중간 합류</button>
+      </div>
+      <div class="sub-input" id="ge-join"><input type="text" placeholder="언제 합류 예정인지 알려주세요"></div>
+    </div>
+    <div class="form-group">
+      <label>이동 수단</label>
+      <div class="toggle-row" id="ge-transport-row">
+        <button class="toggle-btn active" onclick="toggleTransport(this,'ge')">🚗 자차</button>
+        <button class="toggle-btn" onclick="toggleTransport(this,'ge')">🚌 대중교통 / 뚜벅이</button>
+      </div>
+      <div class="transport-note" id="ge-transport-note-car">
+        <strong>🚗 자차 이용 시</strong> — 다른 인원을 태워주실 수 있나요?
+        <div class="carpool-row" style="margin-top:8px;">
+          <select id="ge-carpool"><option value="">동승 가능 여부</option><option value="yes">태워줄 수 있어요 😊</option><option value="no">나 혼자만 이동해요</option></select>
+          <select id="ge-carpool-num" style="display:none"><option value="">몇 명까지?</option><option>1명</option><option>2명</option><option>3명</option><option>4명 이상</option></select>
+        </div>
+      </div>
+      <div class="transport-note" id="ge-transport-note-pub" style="display:none">
+        <strong>🚌 대중교통 / 뚜벅이</strong> — 버스, 지하철, 도보 등 모두 포함이에요. 자차 카풀이 필요하면 운영진에게 말씀해주세요!
+      </div>
+    </div>
+    <div class="form-group"><label>출발 지역</label><input type="text" placeholder="예: 서울시 강남구, 수원시 영통동 등"></div>
+    <div class="form-group"><label>음식 알레르기 및 특이사항</label><input type="text" placeholder="없으면 비워두세요"></div>
+    <div class="form-group"><label>기타 (하고 싶은 말)</label><textarea placeholder="운영진에게 하고 싶은 말, 요청사항 등"></textarea></div>
+    <button class="btn-submit" onclick="doSubmit('GE')">🎉 신청 완료하기</button>
+  </div>
+
+  <!-- 군인 폼 (form-AR) -->
+  <div class="form-section" id="form-AR">
+    <div class="army-notice">🫡 군인 우선 예약으로 접수됩니다.<br>우선 배정 자리 4석 중 선착순으로 신청 가능합니다.</div>
+    <div class="form-row">
+      <div class="form-group"><label>이름</label><input type="text" placeholder="홍길동"></div>
+      <div class="form-group"><label>기수</label><select><option value="">선택</option><option>1기</option><option>2기</option><option>3기</option><option>4기</option><option>5기</option><option>6기</option><option>7기</option></select></div>
+    </div>
+    <div class="form-group"><label>학번</label><input type="text" placeholder="예: 2022123456"></div>
+    <div class="form-group"><label>연락처</label><input type="tel" placeholder="010-0000-0000"></div>
+    <div class="form-group">
+      <label>빅이큐 MT 참여 횟수</label>
+      <select><option value="">선택</option><option>0번 (처음이에요!)</option><option>1번</option><option>2번</option><option>3번</option><option>4번</option></select>
+    </div>
+    <div class="form-group"><label>이번 MT에 한 마디 남겨봐요 🏐</label><textarea id="expAR" placeholder="기대되는 것, 꼭 하고 싶은 것, 아니면 그냥 한 마디도 좋아요! 🫡"></textarea></div>
+    <div class="form-group">
+      <label>참가 일정</label>
+      <div class="toggle-row">
+        <button class="toggle-btn active" onclick="toggleSchedule(this,'ar-join')">전일정 참여</button>
+        <button class="toggle-btn" onclick="toggleSchedule(this,'ar-join')">중간 합류</button>
+      </div>
+      <div class="sub-input" id="ar-join"><input type="text" placeholder="언제 합류 예정인지 알려주세요"></div>
+    </div>
+    <div class="form-group">
+      <label>이동 수단</label>
+      <div class="toggle-row">
+        <button class="toggle-btn active" onclick="toggleTransport(this,'ar')">🚗 자차</button>
+        <button class="toggle-btn" onclick="toggleTransport(this,'ar')">🚌 대중교통 / 뚜벅이</button>
+      </div>
+      <div class="transport-note" id="ar-transport-note-car">
+        <strong>🚗 자차 이용 시</strong> — 다른 인원을 태워주실 수 있나요?
+        <div class="carpool-row" style="margin-top:8px;">
+          <select id="ar-carpool"><option value="">동승 가능 여부</option><option value="yes">태워줄 수 있어요 😊</option><option value="no">나 혼자만 이동해요</option></select>
+          <select id="ar-carpool-num" style="display:none"><option value="">몇 명까지?</option><option>1명</option><option>2명</option><option>3명</option><option>4명 이상</option></select>
+        </div>
+      </div>
+      <div class="transport-note" id="ar-transport-note-pub" style="display:none">
+        <strong>🚌 대중교통 / 뚜벅이</strong> — 버스, 지하철, 도보 등 모두 포함이에요.
+      </div>
+    </div>
+    <div class="form-group"><label>출발 지역</label><input type="text" placeholder="예: 서울시 강남구, 수원시 영통동 등"></div>
+    <div class="form-group"><label>음식 알레르기 및 특이사항</label><input type="text" placeholder="없으면 비워두세요"></div>
+    <div class="form-group">
+      <label>군인 우대 신청 여부</label>
+      <select><option value="">선택</option><option>군인 우선 예약 신청</option><option>일반 신청 (우선예약 미사용)</option></select>
+    </div>
+    <div class="form-group">
+      <label>현재 상태</label>
+      <select><option value="">선택</option><option>휴가 확정</option><option>휴가 신청 중</option><option>휴가 신청 예정</option><option>기타</option></select>
+    </div>
+    <div class="form-group"><label>기타 (하고 싶은 말)</label><textarea placeholder="운영진에게 하고 싶은 말, 요청사항 등"></textarea></div>
+    <button class="btn-submit" onclick="doSubmit('AR')">🫡 군인 우선 예약 신청하기</button>
+  </div>
+</div>
+</div>
+
+<!-- STATUS (기수별 온도계) -->
+<div class="modal-overlay" id="modal-status" onclick="closeBg(event,'status')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div>
+  <button class="modal-close" onclick="closeModal('status')">✕</button>
+  <div class="modal-title">📊 기수별 신청 현황</div>
+  <div class="modal-sub">기수가 뜨거울수록 많이 신청했어요! 🌡️ 총 정원 24명 (군인 우선 4명 포함)</div>
+  <div class="bar-wrap" style="margin-bottom:20px">
+    <div class="bar-label"><span>전체 신청률</span><span id="totalPctLabel" style="font-weight:700;color:var(--blue)">0 / 24명</span></div>
+    <div class="bar-track" style="height:13px"><div class="bar-fill" id="barTotal"></div></div>
+  </div>
+  <div class="cohort-thermo-wrap" id="thermoRows"></div>
+  <div id="statArmy" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+    <div class="bar-label" style="margin-bottom:6px"><span style="color:var(--army);font-weight:700">🫡 군인 우선 예약</span><span id="armyStatLabel" style="font-weight:700;color:var(--army)">0 / 4명</span></div>
+    <div class="bar-track" style="height:13px"><div class="bar-fill army-bar" id="barStatArmy"></div></div>
+  </div>
+</div>
+</div>
+
+<!-- SCHED1 -->
+<div class="modal-overlay" id="modal-sched1" onclick="closeBg(event,'sched1')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><button class="modal-close" onclick="closeModal('sched1')">✕</button>
+  <div class="modal-title">🌆 DAY 1 — 8월 22일 (금)</div><div class="modal-sub">이동 · 입실 · 환영 파티</div>
+  <div class="tl-item"><div class="tl-time">14:00</div><div class="tl-dots"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><h4>집결 및 출발</h4><p>서울 OO역 앞 집결, 버스 출발</p></div></div>
+  <div class="tl-item"><div class="tl-time">17:00</div><div class="tl-dots"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><h4>리조트 입실</h4><p>방 배정 및 짐 정리</p></div></div>
+  <div class="tl-item"><div class="tl-time">18:30</div><div class="tl-dots"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><h4>저녁 식사 🍽️</h4><p>단체 저녁 식사</p></div></div>
+  <div class="tl-item"><div class="tl-time">20:00</div><div class="tl-dots"><div class="tl-dot"></div></div><div class="tl-body"><h4>환영 파티 🎉</h4><p>기수별 자기소개 · 게임 · 네트워킹</p></div></div>
+</div>
+</div>
+
+<!-- SCHED2 -->
+<div class="modal-overlay" id="modal-sched2" onclick="closeBg(event,'sched2')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><button class="modal-close" onclick="closeModal('sched2')">✕</button>
+  <div class="modal-title">🏕️ DAY 2 — 8월 23일 (토)</div><div class="modal-sub">레크레이션 · 강연 · 바베큐</div>
+  <div class="tl-item"><div class="tl-time">09:00</div><div class="tl-dots"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><h4>기상 & 아침 식사</h4><p>단체 아침 식사</p></div></div>
+  <div class="tl-item"><div class="tl-time">10:30</div><div class="tl-dots"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><h4>레크레이션 🏃</h4><p>팀 대항 게임 · 경품 추첨</p></div></div>
+  <div class="tl-item"><div class="tl-time">13:30</div><div class="tl-dots"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><h4>선배 특강 🎤</h4><p>각 분야 선배 동문 특강</p></div></div>
+  <div class="tl-item"><div class="tl-time">18:00</div><div class="tl-dots"><div class="tl-dot"></div></div><div class="tl-body"><h4>바베큐 파티 🔥</h4><p>야외 바베큐 & 장기자랑</p></div></div>
+</div>
+</div>
+
+<!-- SCHED3 -->
+<div class="modal-overlay" id="modal-sched3" onclick="closeBg(event,'sched3')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><button class="modal-close" onclick="closeModal('sched3')">✕</button>
+  <div class="modal-title">🌊 DAY 3 — 8월 24일 (일)</div><div class="modal-sub">단체 활동 · 폐회식 · 귀가</div>
+  <div class="tl-item"><div class="tl-time">09:00</div><div class="tl-dots"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><h4>기상 & 아침 식사</h4><p>단체 아침 식사</p></div></div>
+  <div class="tl-item"><div class="tl-time">10:30</div><div class="tl-dots"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><h4>단체 야외 활동 🌿</h4><p>수상 스포츠 · 산책 · 자유 시간</p></div></div>
+  <div class="tl-item"><div class="tl-time">13:00</div><div class="tl-dots"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><h4>점심 & 폐회식 🏆</h4><p>기념 촬영 · 시상식</p></div></div>
+  <div class="tl-item"><div class="tl-time">15:00</div><div class="tl-dots"><div class="tl-dot"></div></div><div class="tl-body"><h4>귀가 🚌</h4><p>버스 출발, 서울 귀환</p></div></div>
+</div>
+</div>
+
+<!-- COHORT -->
+<div class="modal-overlay" id="modal-cohort" onclick="closeBg(event,'cohort')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><button class="modal-close" onclick="closeModal('cohort')">✕</button>
+  <div class="modal-title">👥 기수 / 동기 확인</div><div class="modal-sub">기수로 모아보거나, 이름으로 검색해보세요</div>
+  <div class="form-group"><input type="text" placeholder="🔍 이름 검색..." oninput="filterCohort(this.value)" id="cohortSearchInput"></div>
+  <div class="cohort-filter-row" id="cohortFilterRow">
+    <button class="cohort-filter-btn active" onclick="filterByCohort('all',this)">전체</button>
+    <button class="cohort-filter-btn" onclick="filterByCohort('1기',this)">1기</button>
+    <button class="cohort-filter-btn" onclick="filterByCohort('2기',this)">2기</button>
+    <button class="cohort-filter-btn" onclick="filterByCohort('3기',this)">3기</button>
+    <button class="cohort-filter-btn" onclick="filterByCohort('4기',this)">4기</button>
+    <button class="cohort-filter-btn" onclick="filterByCohort('5기',this)">5기</button>
+    <button class="cohort-filter-btn" onclick="filterByCohort('6기',this)">6기</button>
+    <button class="cohort-filter-btn" onclick="filterByCohort('7기',this)">7기</button>
+  </div>
+  <table class="cohort-table" id="cohortTable">
+    <thead><tr><th>기수</th><th>이름</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr data-cohort="1기"><td>1기</td><td>이동문</td><td>—</td></tr>
+      <tr data-cohort="1기"><td>1기</td><td>김선배</td><td>—</td></tr>
+      <tr data-cohort="2기"><td>2기</td><td>박동기</td><td>—</td></tr>
+      <tr data-cohort="2기"><td>2기</td><td>최동문</td><td>—</td></tr>
+      <tr data-cohort="3기"><td>3기</td><td>김동문</td><td>🫡 군복무중</td></tr>
+      <tr data-cohort="3기"><td>3기</td><td>정동기</td><td>—</td></tr>
+      <tr data-cohort="4기"><td>4기</td><td>박동문</td><td>—</td></tr>
+      <tr data-cohort="5기"><td>5기</td><td>정동문</td><td>🫡 군복무중</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:12px;color:var(--text3);margin-top:12px;text-align:center">실제 동문 명단으로 업데이트 예정</p>
+</div>
+</div>
+
+<!-- LOCATION -->
+<div class="modal-overlay" id="modal-location" onclick="closeBg(event,'location')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><button class="modal-close" onclick="closeModal('location')">✕</button>
+  <div class="modal-title">📍 행사 장소</div>
+  <div class="modal-sub">가평 OO 리조트 · 2025년 8월 22–24일</div>
+  <div class="location-tbd">
+    <strong>🗺️ 정확한 장소는 아직 미정이에요</strong>
+    <p>장소 확정 후 네이버 지도 링크를 업데이트할게요!<br>확정 시 카카오톡으로 안내드립니다.</p>
+    <div style="margin-top:12px">
+      <a class="btn-naver-map" href="https://map.naver.com/v5/search/가평+리조트" target="_blank" rel="noopener">
+        🗺️ 네이버 지도에서 가평 검색
+      </a>
+    </div>
+  </div>
+  <div style="font-size:13px;color:var(--text3);line-height:1.6">
+    <strong style="color:var(--text)">📌 장소 확정 예정</strong><br>
+    장소가 확정되면 이 페이지에 정확한 네이버 지도 링크가 추가됩니다. 🙌
+  </div>
+</div>
+</div>
+
+<!-- FEE -->
+<div class="modal-overlay" id="modal-fee" onclick="closeBg(event,'fee')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><button class="modal-close" onclick="closeModal('fee')">✕</button>
+  <div class="modal-title">💳 회비 현황</div>
+  <div class="modal-sub">납부 현황을 확인해보세요 (회비 약 13만원 · 미정)</div>
+  <div class="fee-badge">⚠️ 회비 금액은 추후 확정됩니다</div>
+  <p class="fee-desc">납부 완료 여부를 아래에서 확인하세요. 오류가 있으면 운영진에게 문의해주세요!</p>
+  <div class="fee-tabs">
+    <button class="fee-tab active-paid" id="feePaidTab" onclick="switchFeeTab('paid')">✅ 납부 완료</button>
+    <button class="fee-tab" id="feeUnpaidTab" onclick="switchFeeTab('unpaid')">❌ 미납부</button>
+  </div>
+  <div class="fee-list" id="feeList"></div>
+</div>
+</div>
+
+<!-- ARMY -->
+<div class="modal-overlay" id="modal-army" onclick="closeBg(event,'army')">
+<div class="modal-sheet">
+  <div class="modal-handle"></div><button class="modal-close" onclick="closeModal('army')">✕</button>
+  <div class="modal-title">🫡 군인 우대 혜택 안내</div>
+  <div class="modal-sub">국방을 책임지는 군인 부원들을 위한 특별 혜택</div>
+  <div class="bar-wrap" style="margin-bottom:20px">
+    <div class="bar-label"><span>군인 우선 예약 현황</span><span id="armyModalLabel" style="font-weight:700;color:var(--army)">0 / 4명</span></div>
+    <div class="bar-track" style="height:13px"><div class="bar-fill army-bar" id="barArmyModal"></div></div>
+  </div>
+  <div class="benefit-item"><h4>1. 🎯 우선 예약권</h4><p>선착순 마감과 관계없이 군인 우선 배정 — 별도 4자리가 먼저 배정됩니다.</p></div>
+  <div class="benefit-item"><h4>2. 💸 휴가 취소 시 회비 100% 환불</h4><p>군부대 사정으로 불참하게 될 경우 취소 처리 및 회비 전액 환불해드립니다.</p></div>
+  <div class="army-alert">⚠️ 단! 참석 여부 확정 즉시 소명이에게 공유 필수 !!!!<br>확정 후 미공유 시 환불이 어려울 수 있습니다.</div>
+  <button class="btn-submit" style="margin-top:18px" onclick="closeModal('army');openApplyArmy()">🫡 군인 우선 예약 신청하기</button>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== DATA =====
+const MAX_GEN = 20, MAX_ARMY = 4;
+let counts = { student:0, grad:0, leave:0, army:0, etc:0 };
+// 기수별 카운트 (1기~7기)
+let cohortCounts = {1:0,2:0,3:0,4:0,5:0,6:0,7:0};
+
+// 회비 더미 데이터
+const feeData = [
+  {name:'이동문',cohort:'1기',paid:true},
+  {name:'김선배',cohort:'1기',paid:false},
+  {name:'박동기',cohort:'2기',paid:true},
+  {name:'최동문',cohort:'2기',paid:false},
+  {name:'김동문',cohort:'3기',paid:false},
+  {name:'정동기',cohort:'3기',paid:true},
+  {name:'박동문',cohort:'4기',paid:false},
+  {name:'정동문',cohort:'5기',paid:false},
+];
+let feeTab = 'paid';
+
+let expectations = [
+  {text:'이번엔 진짜 빠지면 안 될 것 같아요. 기대 잔뜩 됩니다! 🙌', author:'3기 김동문'},
+  {text:'드디어 5회차! 매번 느끼지만 빅이큐 MT는 레전드임.', author:'1기 이동문'},
+  {text:'오랜만에 기수 초월 어울려보고 싶어요 💕', author:'4기 박동문'},
+  {text:'작년도 너무 좋았는데 올해는 더 기대됩니다!!', author:'2기 최동문'},
+  {text:'군인 우대 혜택 덕분에 미리 신청 완료 🫡', author:'5기 정동문'},
+  {text:'5회차 MT 벌써 다섯번째라니 감회가 새로워요', author:'2기 최선배'},
+];
+
+// ===== MARQUEE =====
+function buildMarquee() {
+  const t = document.getElementById('marqueeTrack');
+  const all = [...expectations,...expectations];
+  t.innerHTML = all.map(e=>`<div class="exp-chip">${e.text}<div class="exp-author">— ${e.author}</div></div>`).join('');
+}
+buildMarquee();
+
+// ===== THEME =====
+document.getElementById('themeBtn').addEventListener('click',function(){
+  const d = document.documentElement.dataset.theme==='dark';
+  document.documentElement.dataset.theme = d?'light':'dark';
+  this.textContent = d?'🌙':'☀️';
+});
+
+// ===== D-DAY =====
+(function(){
+  const t = new Date('2025-08-22'), now = new Date();
+  now.setHours(0,0,0,0);
+  const d = Math.ceil((t-now)/86400000);
+  document.getElementById('ddayNum').textContent = d>0?d:(d===0?'오늘!':Math.abs(d));
+})();
+
+// ===== MODAL =====
+function openModal(id){
+  document.getElementById('modal-'+id).classList.add('active');
+  document.body.style.overflow='hidden';
+  if(id==='status') buildStatus();
+  if(id==='army') updateArmyBars();
+  if(id==='fee') buildFeeList();
+}
+function closeModal(id){
+  document.getElementById('modal-'+id).classList.remove('active');
+  document.body.style.overflow='';
+}
+function closeBg(e,id){if(e.target===document.getElementById('modal-'+id))closeModal(id);}
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') document.querySelectorAll('.modal-overlay.active').forEach(m=>{m.classList.remove('active');document.body.style.overflow='';});
+});
+
+// ===== APPLY TYPE =====
+const typeMap={student:'SL',grad:'GE',leave:'SL',army:'AR',etc:'GE'};
+let curType='student';
+function switchType(btn, type){
+  curType=type;
+  btn.closest('.type-btns').querySelectorAll('.type-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.form-section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('form-'+typeMap[type]).classList.add('active');
+}
+function openApplyArmy(){
+  openModal('apply');
+  const btns = document.querySelectorAll('.type-btn');
+  btns.forEach(b=>b.classList.remove('active'));
+  btns[3].classList.add('active');
+  document.querySelectorAll('.form-section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('form-AR').classList.add('active');
+  curType='army';
+}
+
+// ===== TOGGLE HELPERS =====
+function toggleSchedule(btn, subId){
+  const row = btn.closest('.toggle-row');
+  row.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const isJoin = btn.textContent.includes('합류');
+  const sub = document.getElementById(subId);
+  if(sub) sub.classList.toggle('show', isJoin);
+}
+
+function toggleTransport(btn, prefix){
+  const row = btn.closest('.toggle-row');
+  row.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const isCar = btn.textContent.includes('자차');
+  const noteC = document.getElementById(prefix+'-transport-note-car');
+  const noteP = document.getElementById(prefix+'-transport-note-pub');
+  if(noteC) noteC.style.display = isCar ? '' : 'none';
+  if(noteP) noteP.style.display = isCar ? 'none' : '';
+}
+
+// 카풀 인원 선택 연동
+document.querySelectorAll('[id$="-carpool"]').forEach(sel=>{
+  sel.addEventListener('change', function(){
+    const numSel = document.getElementById(this.id+'-num');
+    if(numSel) numSel.style.display = this.value==='yes'?'':'none';
+  });
+});
+
+// ===== SUBMIT =====
+function getCohortNum(formId){
+  const sel = document.querySelector('#form-'+formId+' select');
+  if(!sel) return null;
+  const v = sel.value;
+  const m = v.match(/(\d+)기/);
+  return m?parseInt(m[1]):null;
+}
+function doSubmit(formId){
+  const isArmy = formId==='AR';
+  const genTotal = counts.student+counts.grad+counts.leave+counts.etc;
+  if(isArmy){
+    if(counts.army>=MAX_ARMY){showToast('⚠️ 군인 우선 예약 자리가 마감되었습니다.');return;}
+    counts.army++;
+  } else {
+    if(genTotal>=MAX_GEN){showToast('⚠️ 일반 신청 정원이 마감되었습니다.');return;}
+    counts[curType]=(counts[curType]||0)+1;
+  }
+
+  // 기수 카운트
+  const cNum = getCohortNum(formId);
+  if(cNum && cohortCounts[cNum]!==undefined) cohortCounts[cNum]++;
+
+  // 기대평 수집
+  const expId = {SL:'expSL',GE:'expGE',AR:'expAR'}[formId];
+  const expEl = document.getElementById(expId);
+  const expVal = expEl?expEl.value.trim():'';
+  if(expVal){
+    const label={student:'재학생',grad:'졸업생',leave:'휴학생',army:'군인',etc:'기타'}[curType];
+    expectations.unshift({text:expVal, author:label});
+    buildMarquee();
+    if(expEl) expEl.value='';
+  }
+
+  updateBars();
+  closeModal('apply');
+  showToast('🎉 신청이 완료되었습니다!');
+}
+
+// ===== BARS =====
+function getGenCount(){ return counts.student+counts.grad+counts.leave+counts.etc; }
+function setBarW(id, pct){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.style.transition='width .9s cubic-bezier(0.4,0,0.2,1)';
+  el.style.width=pct+'%';
+}
+function updateBars(){
+  const gen=getGenCount(), army=counts.army, total=gen+army;
+  const genPct=Math.round(gen/MAX_GEN*100), armyPct=Math.round(army/MAX_ARMY*100);
+  document.getElementById('totalCount').textContent=total+'명';
+  document.getElementById('remainCount').textContent=Math.max(0,24-total)+'명';
+  document.getElementById('genLabel').textContent=gen+'명 / '+MAX_GEN+'명';
+  document.getElementById('armyLabel').textContent=army+'명 / '+MAX_ARMY+'명';
+  document.getElementById('armyMainLabel').textContent=army+'명 / '+MAX_ARMY+'명';
+  setBarW('barGen',genPct); setBarW('barArmy',armyPct); setBarW('barArmyMain',armyPct);
+}
+function updateArmyBars(){
+  const army=counts.army, pct=Math.round(army/MAX_ARMY*100);
+  document.getElementById('armyModalLabel').textContent=army+' / 4명';
+  setBarW('barArmyModal',pct);
+}
+
+// 온도에 따른 색상 (차가운 파랑 -> 뜨거운 빨강)
+function thermoColor(pct){
+  // 0%: 파랑, 50%: 노랑, 100%: 빨강
+  if(pct <= 0) return '#4A90D9';
+  if(pct < 30) return '#5BA8E0';
+  if(pct < 50) return '#F5A623';
+  if(pct < 75) return '#F07A2A';
+  return '#E8392D';
+}
+
+function buildStatus(){
+  const gen=getGenCount(), army=counts.army, total=gen+army;
+  const pct=Math.round(total/24*100);
+  document.getElementById('totalPctLabel').textContent=total+' / 24명 ('+pct+'%)';
+  setBarW('barTotal',pct);
+
+  // 기수별 온도계 (각 기수 최대 인원을 4명으로 가정, 조정 가능)
+  const maxPerCohort = 4;
+  let html = '';
+  for(let i=1;i<=7;i++){
+    const c = cohortCounts[i]||0;
+    const cPct = Math.min(Math.round(c/maxPerCohort*100),100);
+    const color = thermoColor(cPct);
+    const isLow = c === 0;
+    html += `
+      <div class="cohort-thermo-row">
+        <div class="cohort-thermo-label">${i}기</div>
+        <div class="thermo-track">
+          <div class="thermo-fill" id="thermo-${i}" style="width:0%;background:${color}">
+            ${c>0?`<span class="thermo-count">${c}명</span>`:''}
+          </div>
+        </div>
+        <div class="cohort-thermo-num">${c}명</div>
+        ${isLow ? `<button class="btn-notify" onclick="goToCohort('${i}기');closeModal('status')">👥 동기에게 알리러가기!</button>` : ''}
+      </div>
+    `;
+  }
+  document.getElementById('thermoRows').innerHTML = html;
+
+  // 애니메이션
+  setTimeout(()=>{
+    for(let i=1;i<=7;i++){
+      const c = cohortCounts[i]||0;
+      const cPct = Math.min(Math.round(c/maxPerCohort*100),100);
+      const el = document.getElementById('thermo-'+i);
+      if(el){
+        el.style.transition = 'width .9s cubic-bezier(0.4,0,0.2,1)';
+        el.style.width = Math.max(cPct,0)+'%';
+      }
+    }
+  },50);
+
+  // 군인
+  const armyPct=Math.round(army/MAX_ARMY*100);
+  document.getElementById('armyStatLabel').textContent=army+' / 4명';
+  setTimeout(()=>setBarW('barStatArmy',armyPct),50);
+}
+
+function goToCohort(cohort){
+  openModal('cohort');
+  document.getElementById('cohortSearchInput').value='';
+  filterByCohort(cohort, document.querySelector(`.cohort-filter-btn[onclick*="${cohort}"]`));
+}
+
+// ===== COHORT SEARCH =====
+let activeCohortFilter = 'all';
+function filterCohort(v){
+  activeCohortFilter = 'all';
+  document.querySelectorAll('.cohort-filter-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector('.cohort-filter-btn').classList.add('active');
+  document.querySelectorAll('#cohortTable tbody tr').forEach(r=>{
+    r.style.display=r.textContent.toLowerCase().includes(v.toLowerCase())?'':'none';
+  });
+}
+function filterByCohort(cohort, btn){
+  activeCohortFilter = cohort;
+  document.getElementById('cohortSearchInput').value='';
+  document.querySelectorAll('.cohort-filter-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  document.querySelectorAll('#cohortTable tbody tr').forEach(r=>{
+    r.style.display=(cohort==='all'||r.dataset.cohort===cohort)?'':'none';
+  });
+}
+
+// ===== FEE =====
+function switchFeeTab(tab){
+  feeTab = tab;
+  document.getElementById('feePaidTab').className='fee-tab'+(tab==='paid'?' active-paid':'');
+  document.getElementById('feeUnpaidTab').className='fee-tab'+(tab==='unpaid'?' active-unpaid':'');
+  buildFeeList();
+}
+function buildFeeList(){
+  const filtered = feeData.filter(f=>feeTab==='paid'?f.paid:!f.paid);
+  document.getElementById('feeList').innerHTML = filtered.length===0
+    ? `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">${feeTab==='paid'?'납부 완료자가 없어요':'미납부자가 없어요 🎉'}</div>`
+    : filtered.map(f=>`
+        <div class="fee-item">
+          <div class="fee-item-left">
+            <span class="fee-item-cohort">${f.cohort}</span>
+            <span class="fee-item-name">${f.name}</span>
+          </div>
+          <span class="fee-badge-paid ${f.paid?'paid':'unpaid'}">${f.paid?'✅ 납부완료':'❌ 미납부'}</span>
+        </div>
+      `).join('');
+}
+
+// ===== TOAST =====
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+updateBars();
+</script>
+</body>
+</html>

@@ -1,0 +1,248 @@
+using ClubMTServer.Data;
+using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using ClubMTServer.Models;
+using Microsoft.AspNetCore.HttpOverrides;
+using Serilog;
+
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
+
+try
+{
+    var builder = WebApplication.CreateBuilder(args);
+
+    builder.Host.UseSerilog((context, services, configuration) => configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}"));
+
+    // Add services to the container.
+    builder.Services.AddControllers();
+    builder.Services.AddOpenApi();
+    builder.Services.AddSingleton<ClubMTServer.Services.EncryptionService>();
+
+    // Critical Configuration Validation
+    var jwtSecret = builder.Configuration["JWT_SECRET"] ?? throw new InvalidOperationException("JWT_SECRET environment variable is missing.");
+    var adminKey = builder.Configuration["ADMIN_KEY"] ?? throw new InvalidOperationException("ADMIN_KEY environment variable is missing.");
+    var allowedOriginsString = builder.Configuration["ALLOWED_ORIGINS"] ?? throw new InvalidOperationException("ALLOWED_ORIGINS environment variable is missing.");
+    var encryptionKey = builder.Configuration["ENCRYPTION_KEY"] ?? throw new InvalidOperationException("ENCRYPTION_KEY environment variable is missing.");
+
+    var key = Encoding.ASCII.GetBytes(jwtSecret);
+
+    builder.Services.AddAuthentication(x =>
+        {
+            x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+            x.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+        })
+        .AddJwtBearer(x =>
+        {
+            x.RequireHttpsMetadata = true; // Enforce HTTPS
+            x.SaveToken = true;
+            x.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(key),
+                ValidateIssuer = true,
+                ValidIssuer = "ClubMTServer",
+                ValidateAudience = true,
+                ValidAudience = "ClubMTClient",
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.Zero
+            };
+            x.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = context =>
+                {
+                    context.Token = context.Request.Cookies["jwt"];
+                    return Task.CompletedTask;
+                }
+            };
+        });
+
+    builder.Services.AddAuthorization();
+
+    // Rate Limiting Configuration
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        options.AddFixedWindowLimiter(policyName: "login", loginOptions =>
+        {
+            loginOptions.PermitLimit = 5;
+            loginOptions.Window = TimeSpan.FromMinutes(1);
+            loginOptions.QueueLimit = 0;
+        });
+        options.AddFixedWindowLimiter(policyName: "submit", submitOptions =>
+        {
+            submitOptions.PermitLimit = 3;
+            submitOptions.Window = TimeSpan.FromMinutes(1);
+            submitOptions.QueueLimit = 0;
+        });
+    });
+
+    var dataDir = Path.Combine(AppContext.BaseDirectory, "data");
+    Directory.CreateDirectory(dataDir);
+
+    builder.Services.AddDbContext<MemberDbContext>(options =>
+        options.UseSqlite($"Data Source={Path.Combine(dataDir, "members.db")}"));
+    builder.Services.AddDbContext<SettingsDbContext>(options =>
+        options.UseSqlite($"Data Source={Path.Combine(dataDir, "settings.db")}"));
+    builder.Services.AddDbContext<FeeDbContext>(options =>
+        options.UseSqlite($"Data Source={Path.Combine(dataDir, "fees.db")}"));
+    builder.Services.AddDbContext<ParticipantDbContext>(options =>
+        options.UseSqlite($"Data Source={Path.Combine(dataDir, "participants.db")}"));
+
+    var allowedOrigins = allowedOriginsString.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy("AllowedDomains", policy =>
+        {
+            policy.WithOrigins(allowedOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials();
+        });
+    });
+
+    var app = builder.Build();
+
+    // Enable Forwarded Headers for Nginx Proxy
+    app.UseForwardedHeaders(new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+    });
+
+    app.UseCors("AllowedDomains");
+    app.UseSerilogRequestLogging();
+    app.UseRateLimiter();
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    // Security Middleware: Origin, Referer, User-Agent
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Method == "OPTIONS")
+        {
+            await next(context);
+            return;
+        }
+
+        var userAgent = context.Request.Headers["User-Agent"].ToString();
+        var origin = context.Request.Headers["Origin"].ToString();
+        var referer = context.Request.Headers["Referer"].ToString();
+
+        if (string.IsNullOrEmpty(userAgent))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsync("Forbidden: Bot-like activity detected.");
+            return;
+        }
+
+        bool hasOrigin = !string.IsNullOrEmpty(origin);
+        bool hasReferer = !string.IsNullOrEmpty(referer);
+
+        // Strict Origin/Referer Validation: Must exactly match allowed origins
+        bool originOk = !hasOrigin || allowedOrigins.Contains(origin);
+
+        // Referer can be a subpath, but the base domain must be exactly in the allowed list
+        bool refererOk = true;
+        if (hasReferer)
+        {
+            refererOk = allowedOrigins.Any(o => referer == o || referer.StartsWith(o + "/"));
+            // Additional check: Ensure it's not a deceptive subdomain (e.g., https://allowed.com.attacker.com)
+            if (refererOk)
+            {
+                var refererUri = new Uri(referer);
+                var refererBase = $"{refererUri.Scheme}://{refererUri.Host}{(refererUri.IsDefaultPort ? "" : $":{refererUri.Port}")}";
+                refererOk = allowedOrigins.Contains(refererBase);
+            }
+        }
+
+        if (!originOk || !refererOk)
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsync("Forbidden: Invalid Origin or Referer.");
+            return;
+        }
+
+        await next(context);
+    });
+
+    app.UseDefaultFiles();
+    app.UseStaticFiles();
+
+    if (app.Environment.IsDevelopment())
+    {
+        app.MapOpenApi();
+        app.MapScalarApiReference();
+    }
+
+    app.MapControllers();
+
+    using (var scope = app.Services.CreateScope())
+    {
+        var memberDb = scope.ServiceProvider.GetRequiredService<MemberDbContext>();
+        var settingsDb = scope.ServiceProvider.GetRequiredService<SettingsDbContext>();
+        var feeDb = scope.ServiceProvider.GetRequiredService<FeeDbContext>();
+        var participantDb = scope.ServiceProvider.GetRequiredService<ParticipantDbContext>();
+
+        memberDb.Database.EnsureCreated();
+        settingsDb.Database.EnsureCreated();
+        feeDb.Database.EnsureCreated();
+        participantDb.Database.EnsureCreated();
+
+        // AUTO-MIGRATION: Fill missing NameHash for existing data
+        var encryption = scope.ServiceProvider.GetRequiredService<ClubMTServer.Services.EncryptionService>();
+
+        var membersToFix = memberDb.Members.Where(m => string.IsNullOrEmpty(m.NameHash)).ToList();
+        foreach (var m in membersToFix)
+        {
+            m.NameHash = encryption.ComputeHash(m.Name);
+        }
+
+        if (membersToFix.Any()) memberDb.SaveChanges();
+
+        var participantsToFix = participantDb.Participants.Where(p => string.IsNullOrEmpty(p.NameHash)).ToList();
+        foreach (var p in participantsToFix)
+        {
+            p.NameHash = encryption.ComputeHash(p.Name);
+        }
+
+        if (participantsToFix.Count == 0) participantDb.SaveChanges();
+
+        // SEED ADMIN USER
+        if (!memberDb.AdminUsers.Any())
+        {
+            memberDb.AdminUsers.Add(new AdminUser
+            {
+                Username = "admin",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminKey)
+            });
+            memberDb.SaveChanges();
+        }
+
+        // SEED DEFAULT SETTINGS if empty
+        if (!settingsDb.Settings.Any())
+        {
+            settingsDb.Settings.Add(new SiteSettings());
+            settingsDb.SaveChanges();
+        }
+    }
+
+    app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+}
+finally
+{
+    Log.CloseAndFlush();
+}
