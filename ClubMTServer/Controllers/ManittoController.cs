@@ -33,23 +33,40 @@ public class ManittoController : ControllerBase
     [HttpPost("reports")]
     [Authorize]
     [EnableRateLimiting("submit")]
-    public async Task<IActionResult> PostReport([FromBody] string content)
+    public async Task<IActionResult> PostReport([FromBody] ManittoReportRequest request)
     {
-        if (string.IsNullOrWhiteSpace(content)) return BadRequest("내용을 입력해주세요.");
-        if (content.Length > 1000) return BadRequest("제보 내용은 1000자 이내로 작성해주세요.");
+        if (string.IsNullOrWhiteSpace(request.Content)) return BadRequest("내용을 입력해주세요.");
+        if (request.Content.Length > 1000) return BadRequest("제보 내용은 1000자 이내로 작성해주세요.");
 
         var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (idClaim == null || !int.TryParse(idClaim, out var id)) return Unauthorized();
+
+        // 1. ClientRequestId 중복 체크 (전달된 경우)
+        if (!string.IsNullOrEmpty(request.ClientRequestId))
+        {
+            var exists = await _context.ManittoReports.AnyAsync(r => r.ClientRequestId == request.ClientRequestId);
+            if (exists) return Ok(new { message = "이미 처리된 요청입니다." });
+        }
+        else
+        {
+            // 2. ClientRequestId가 없는 경우 최근 10초 내 동일 내용 중복 체크
+            var recentThreshold = DateTime.UtcNow.AddSeconds(-10);
+            var isDuplicate = await _context.ManittoReports
+                .AnyAsync(r => r.ParticipantId == id && r.Content == request.Content && r.CreatedAt > recentThreshold);
+
+            if (isDuplicate) return Ok(new { message = "이미 제보가 접수되었습니다. 잠시 후 다시 시도해주세요." });
+        }
 
         var p = await _context.Participants.FindAsync(id);
         if (p == null) return Unauthorized();
 
         var report = new ManittoReport 
         { 
-            Content = content,
+            Content = request.Content,
             ParticipantId = p.Id,
             ParticipantName = p.Name,
-            ParticipantGeneration = p.Generation
+            ParticipantGeneration = p.Generation,
+            ClientRequestId = request.ClientRequestId
         };
         _context.ManittoReports.Add(report);
         await _context.SaveChangesAsync();

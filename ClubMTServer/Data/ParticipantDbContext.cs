@@ -37,5 +37,9 @@ public class ParticipantDbContext : DbContext
         modelBuilder.Entity<Participant>()
             .Property(p => p.StudentId)
             .HasConversion(converter);
+
+        modelBuilder.Entity<ManittoReport>()
+            .HasIndex(r => r.ClientRequestId)
+            .IsUnique();
     }
 }

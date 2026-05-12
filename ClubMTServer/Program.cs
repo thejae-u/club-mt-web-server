@@ -215,7 +215,11 @@ try
             p.NameHash = encryption.ComputeHash(p.Name);
         }
 
-        if (participantsToFix.Count == 0) participantDb.SaveChanges();
+        if (participantsToFix.Any()) participantDb.SaveChanges();
+
+        // MANUAL MIGRATION: ManittoReports ClientRequestId
+        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE ManittoReports ADD COLUMN ClientRequestId TEXT NULL;"); } catch { /* Already exists */ }
+        try { participantDb.Database.ExecuteSqlRaw("CREATE UNIQUE INDEX IF NOT EXISTS IX_ManittoReports_ClientRequestId ON ManittoReports (ClientRequestId);"); } catch { /* Already exists */ }
 
         // SEED ADMIN USER
         if (!memberDb.AdminUsers.Any())

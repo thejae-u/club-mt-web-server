@@ -15,4 +15,7 @@ public class ManittoReport
     public int? ParticipantGeneration { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    [MaxLength(100)]
+    public string? ClientRequestId { get; set; }
 }
