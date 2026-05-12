@@ -16,7 +16,7 @@ out/
 .env
 .env.*
 !.env.example
-data/
+/data/
 
 # --- JetBrains (Rider) ---
 .idea/
