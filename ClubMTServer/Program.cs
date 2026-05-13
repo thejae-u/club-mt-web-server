@@ -128,7 +128,8 @@ try
     // Session Validation Middleware: Enforce single-session management
     app.Use(async (context, next) =>
     {
-        if (context.User.Identity?.IsAuthenticated == true)
+        // Only validate if a JWT cookie exists. If it doesn't, let standard authorization handle it.
+        if (context.Request.Cookies.ContainsKey("jwt") && context.User.Identity?.IsAuthenticated == true)
         {
             var sidClaim = context.User.FindFirst("sid")?.Value;
             var roleClaim = context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
@@ -158,10 +159,6 @@ try
 
             if (!isValid)
             {
-                // If session is invalid, treat as unauthenticated rather than blocking the whole request.
-                // This allows public endpoints (like Settings) to still work.
-                context.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity());
-                
                 // Clear the stale cookie
                 var isLocalhost = context.Request.Host.Host == "localhost" || context.Request.Host.Host == "127.0.0.1";
                 context.Response.Cookies.Delete("jwt", new CookieOptions 
@@ -171,6 +168,11 @@ try
                     Secure = !isLocalhost,
                     SameSite = isLocalhost ? SameSiteMode.Lax : SameSiteMode.None
                 });
+
+                // Return 401 immediately for stale sessions to force logout/re-login
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsync("Session expired or logged in from another device.");
+                return;
             }
         }
         await next(context);
