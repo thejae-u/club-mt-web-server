@@ -48,6 +48,11 @@ public class ParticipantsController : ControllerBase
             return Unauthorized("이름, 기수 또는 비밀번호가 올바르지 않습니다.");
         }
 
+        // Generate Session ID for single-session management
+        var sessionId = Guid.NewGuid().ToString();
+        p.CurrentSessionId = sessionId;
+        await _context.SaveChangesAsync();
+
         // Generate JWT
         var secret = _config["JWT_SECRET"] ?? throw new InvalidOperationException("JWT_SECRET is missing.");
         var key = Encoding.ASCII.GetBytes(secret);
@@ -57,7 +62,8 @@ public class ParticipantsController : ControllerBase
             Subject = new ClaimsIdentity(new[] { 
                 new Claim(ClaimTypes.NameIdentifier, p.Id.ToString()),
                 new Claim(ClaimTypes.Name, normalizedName),
-                new Claim(ClaimTypes.Role, "Participant")
+                new Claim(ClaimTypes.Role, "Participant"),
+                new Claim("sid", sessionId) // Add session ID claim
             }),
             Expires = DateTime.UtcNow.AddDays(7),
             Issuer = "ClubMTServer",

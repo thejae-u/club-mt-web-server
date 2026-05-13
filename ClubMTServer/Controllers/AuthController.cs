@@ -36,7 +36,12 @@ public class AuthController : ControllerBase
             return Unauthorized(new { message = "Invalid username or password" });
         }
 
-        var token = GenerateJwtToken(user);
+        // Generate Session ID for single-session management
+        var sessionId = Guid.NewGuid().ToString();
+        user.CurrentSessionId = sessionId;
+        await _context.SaveChangesAsync();
+
+        var token = GenerateJwtToken(user, sessionId);
 
         var isLocalhost = Request.Host.Host == "localhost" || Request.Host.Host == "127.0.0.1";
 
@@ -77,7 +82,7 @@ public class AuthController : ControllerBase
         return Ok(new { message = "Logged out successfully" });
     }
 
-    private string GenerateJwtToken(AdminUser user)
+    private string GenerateJwtToken(AdminUser user, string sessionId)
     {
         var key = Encoding.ASCII.GetBytes(_configuration["JWT_SECRET"] ?? throw new InvalidOperationException("JWT_SECRET is missing."));
         var tokenHandler = new JwtSecurityTokenHandler();
@@ -85,7 +90,8 @@ public class AuthController : ControllerBase
         {
             Subject = new ClaimsIdentity(new[] { 
                 new Claim(ClaimTypes.Name, user.Username),
-                new Claim(ClaimTypes.Role, "admin")
+                new Claim(ClaimTypes.Role, "admin"),
+                new Claim("sid", sessionId) // Add session ID claim
             }),
             Expires = DateTime.UtcNow.AddHours(1),
             Issuer = "ClubMTServer",

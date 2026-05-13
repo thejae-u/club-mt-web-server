@@ -12,5 +12,7 @@ public class AdminUser
     [Required]
     public string PasswordHash { get; set; } = string.Empty;
 
+    public string? CurrentSessionId { get; set; } // For single-session management
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

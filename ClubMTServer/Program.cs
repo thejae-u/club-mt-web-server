@@ -125,6 +125,57 @@ try
     app.UseAuthentication();
     app.UseAuthorization();
 
+    // Session Validation Middleware: Enforce single-session management
+    app.Use(async (context, next) =>
+    {
+        if (context.User.Identity?.IsAuthenticated == true)
+        {
+            var sidClaim = context.User.FindFirst("sid")?.Value;
+            var roleClaim = context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            bool isValid = false;
+
+            if (!string.IsNullOrEmpty(sidClaim))
+            {
+                using var scope = context.RequestServices.CreateScope();
+                if (roleClaim == "admin")
+                {
+                    var db = scope.ServiceProvider.GetRequiredService<MemberDbContext>();
+                    var username = context.User.Identity.Name;
+                    var user = await db.AdminUsers.FirstOrDefaultAsync(u => u.Username == username);
+                    if (user != null && user.CurrentSessionId == sidClaim) isValid = true;
+                }
+                else if (roleClaim == "Participant")
+                {
+                    var db = scope.ServiceProvider.GetRequiredService<ParticipantDbContext>();
+                    var idClaim = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                    if (int.TryParse(idClaim, out int id))
+                    {
+                        var p = await db.Participants.FindAsync(id);
+                        if (p != null && p.CurrentSessionId == sidClaim) isValid = true;
+                    }
+                }
+            }
+
+            if (!isValid)
+            {
+                // If session is invalid, treat as unauthenticated rather than blocking the whole request.
+                // This allows public endpoints (like Settings) to still work.
+                context.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity());
+                
+                // Clear the stale cookie
+                var isLocalhost = context.Request.Host.Host == "localhost" || context.Request.Host.Host == "127.0.0.1";
+                context.Response.Cookies.Delete("jwt", new CookieOptions 
+                { 
+                    Path = "/",
+                    HttpOnly = true,
+                    Secure = !isLocalhost,
+                    SameSite = isLocalhost ? SameSiteMode.Lax : SameSiteMode.None
+                });
+            }
+        }
+        await next(context);
+    });
+
     // Security Middleware: Origin, Referer, User-Agent
     app.Use(async (context, next) =>
     {
@@ -220,6 +271,10 @@ try
         // MANUAL MIGRATION: ManittoReports ClientRequestId
         try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE ManittoReports ADD COLUMN ClientRequestId TEXT NULL;"); } catch { /* Already exists */ }
         try { participantDb.Database.ExecuteSqlRaw("CREATE UNIQUE INDEX IF NOT EXISTS IX_ManittoReports_ClientRequestId ON ManittoReports (ClientRequestId);"); } catch { /* Already exists */ }
+
+        // MANUAL MIGRATION: Single-Session Management (CurrentSessionId)
+        try { memberDb.Database.ExecuteSqlRaw("ALTER TABLE AdminUsers ADD COLUMN CurrentSessionId TEXT NULL;"); } catch { /* Already exists */ }
+        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN CurrentSessionId TEXT NULL;"); } catch { /* Already exists */ }
 
         // SEED ADMIN USER
         if (!memberDb.AdminUsers.Any())

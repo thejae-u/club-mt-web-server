@@ -87,5 +87,7 @@ public class Participant
 
     public string? MbtiResult { get; set; } // EPHA, ITSL, ETHL, ITSA
 
+    public string? CurrentSessionId { get; set; } // For single-session management
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
