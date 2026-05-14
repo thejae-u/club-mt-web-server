@@ -285,6 +285,8 @@ public class ManagementController : ControllerBase
     [Authorize(Roles = "admin")]
     public async Task<ActionResult<IEnumerable<object>>> GetAdmins()
     {
+        if (User.Identity?.Name != "admin") return Forbid();
+
         var admins = await _memberContext.AdminUsers
             .Select(a => new { a.Id, a.Username, a.CreatedAt })
             .ToListAsync();
@@ -295,6 +297,8 @@ public class ManagementController : ControllerBase
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> CreateAdmin([FromBody] AdminCreateDto dto)
     {
+        if (User.Identity?.Name != "admin") return Forbid();
+
         if (string.IsNullOrWhiteSpace(dto.Username) || string.IsNullOrWhiteSpace(dto.Password))
             return BadRequest("아이디와 비밀번호를 입력해주세요.");
 
@@ -318,6 +322,8 @@ public class ManagementController : ControllerBase
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> DeleteAdmin(int id)
     {
+        if (User.Identity?.Name != "admin") return Forbid();
+
         var admin = await _memberContext.AdminUsers.FindAsync(id);
         if (admin == null) return NotFound();
 
