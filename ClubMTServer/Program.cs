@@ -97,6 +97,13 @@ try
         options.UseSqlite($"Data Source={Path.Combine(dataDir, "fees.db")}"));
     builder.Services.AddDbContext<ParticipantDbContext>(options =>
         options.UseSqlite($"Data Source={Path.Combine(dataDir, "participants.db")}"));
+    builder.Services.AddDbContext<AuditLogDbContext>(options =>
+        options.UseSqlite($"Data Source={Path.Combine(dataDir, "auditlogs.db")}"));
+    builder.Services.AddDbContext<ModificationDbContext>(options =>
+        options.UseSqlite($"Data Source={Path.Combine(dataDir, "modifications.db")}"));
+
+    builder.Services.AddSingleton<ClubMTServer.Services.AuditLogQueue>();
+    builder.Services.AddHostedService<ClubMTServer.Services.AuditLogProcessor>();
 
     var allowedOrigins = allowedOriginsString.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
@@ -121,6 +128,7 @@ try
 
     app.UseCors("AllowedDomains");
     app.UseSerilogRequestLogging();
+    app.UseMiddleware<ClubMTServer.Middleware.AuditLogMiddleware>();
     app.UseRateLimiter();
     app.UseAuthentication();
     app.UseAuthorization();
@@ -201,27 +209,37 @@ try
         bool hasOrigin = !string.IsNullOrEmpty(origin);
         bool hasReferer = !string.IsNullOrEmpty(referer);
 
-        // Strict Origin/Referer Validation: Must exactly match allowed origins
-        bool originOk = !hasOrigin || allowedOrigins.Contains(origin);
+        // Detect if request is coming from or going to localhost
+        bool isRequestToLocalhost = context.Request.Host.Host == "localhost" || context.Request.Host.Host == "127.0.0.1";
+        bool isOriginLocalhost = hasOrigin && (origin.StartsWith("http://localhost") || origin.StartsWith("http://127.0.0.1"));
+        bool isRefererLocalhost = hasReferer && (referer.StartsWith("http://localhost") || referer.StartsWith("http://127.0.0.1"));
+
+        // Strict Origin/Referer Validation: Must exactly match allowed origins or be localhost
+        bool originOk = !hasOrigin || allowedOrigins.Contains(origin) || isOriginLocalhost;
 
         // Referer can be a subpath, but the base domain must be exactly in the allowed list
         bool refererOk = true;
         if (hasReferer)
         {
-            refererOk = allowedOrigins.Any(o => referer == o || referer.StartsWith(o + "/"));
-            // Additional check: Ensure it's not a deceptive subdomain (e.g., https://allowed.com.attacker.com)
-            if (refererOk)
+            refererOk = allowedOrigins.Any(o => referer == o || referer.StartsWith(o + "/")) || isRefererLocalhost;
+            
+            // Additional strict check for non-localhost referers
+            if (refererOk && !isRefererLocalhost)
             {
-                var refererUri = new Uri(referer);
-                var refererBase = $"{refererUri.Scheme}://{refererUri.Host}{(refererUri.IsDefaultPort ? "" : $":{refererUri.Port}")}";
-                refererOk = allowedOrigins.Contains(refererBase);
+                try
+                {
+                    var refererUri = new Uri(referer);
+                    var refererBase = $"{refererUri.Scheme}://{refererUri.Host}{(refererUri.IsDefaultPort ? "" : $":{refererUri.Port}")}";
+                    if (!allowedOrigins.Contains(refererBase)) refererOk = false;
+                }
+                catch { refererOk = false; }
             }
         }
 
         if (!originOk || !refererOk)
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            await context.Response.WriteAsync("Forbidden: Invalid Origin or Referer.");
+            await context.Response.WriteAsync("Forbidden: Invalid Origin or Referer. If you are developing locally, ensure your origin is localhost.");
             return;
         }
 
@@ -245,11 +263,15 @@ try
         var settingsDb = scope.ServiceProvider.GetRequiredService<SettingsDbContext>();
         var feeDb = scope.ServiceProvider.GetRequiredService<FeeDbContext>();
         var participantDb = scope.ServiceProvider.GetRequiredService<ParticipantDbContext>();
+        var auditDb = scope.ServiceProvider.GetRequiredService<AuditLogDbContext>();
+        var modificationDb = scope.ServiceProvider.GetRequiredService<ModificationDbContext>();
 
         memberDb.Database.EnsureCreated();
         settingsDb.Database.EnsureCreated();
         feeDb.Database.EnsureCreated();
         participantDb.Database.EnsureCreated();
+        auditDb.Database.EnsureCreated();
+        modificationDb.Database.EnsureCreated();
 
         // AUTO-MIGRATION: Fill missing NameHash for existing data
         var encryption = scope.ServiceProvider.GetRequiredService<ClubMTServer.Services.EncryptionService>();

@@ -278,6 +278,64 @@ public class ManagementController : ControllerBase
         await _participantContext.SaveChangesAsync();
         return Ok(new { message = "모든 참가 정보가 초기화되었습니다." });
     }
+
+    // --- ADMIN ACCOUNT MANAGEMENT ---
+
+    [HttpGet("admins")]
+    [Authorize(Roles = "admin")]
+    public async Task<ActionResult<IEnumerable<object>>> GetAdmins()
+    {
+        var admins = await _memberContext.AdminUsers
+            .Select(a => new { a.Id, a.Username, a.CreatedAt })
+            .ToListAsync();
+        return Ok(admins);
+    }
+
+    [HttpPost("admins")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> CreateAdmin([FromBody] AdminCreateDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Username) || string.IsNullOrWhiteSpace(dto.Password))
+            return BadRequest("아이디와 비밀번호를 입력해주세요.");
+
+        if (await _memberContext.AdminUsers.AnyAsync(u => u.Username == dto.Username))
+            return BadRequest("이미 존재하는 아이디입니다.");
+
+        var newAdmin = new AdminUser
+        {
+            Username = dto.Username,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _memberContext.AdminUsers.Add(newAdmin);
+        await _memberContext.SaveChangesAsync();
+
+        return Ok(new { message = "새로운 관리자 계정이 생성되었습니다." });
+    }
+
+    [HttpDelete("admins/{id}")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> DeleteAdmin(int id)
+    {
+        var admin = await _memberContext.AdminUsers.FindAsync(id);
+        if (admin == null) return NotFound();
+
+        // Prevent self-deletion
+        if (admin.Username == User.Identity?.Name)
+            return BadRequest("본인의 계정은 삭제할 수 없습니다.");
+
+        _memberContext.AdminUsers.Remove(admin);
+        await _memberContext.SaveChangesAsync();
+
+        return Ok(new { message = "관리자 계정이 삭제되었습니다." });
+    }
+}
+
+public class AdminCreateDto
+{
+    public string Username { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
 }
 
 public class ResetRequestDto
