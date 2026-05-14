@@ -15,12 +15,18 @@ public class ParticipantDbContext : DbContext
     }
 
     public DbSet<Participant> Participants { get; set; }
+    public DbSet<ManittoAssignment> ManittoAssignments { get; set; }
     public DbSet<ManittoMission> ManittoMissions { get; set; }
     public DbSet<ManittoReport> ManittoReports { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<Participant>()
+            .HasOne(p => p.ManittoAssignment)
+            .WithOne(a => a.Participant)
+            .HasForeignKey<ManittoAssignment>(a => a.ParticipantId);
 
         var converter = new ValueConverter<string?, string?>(
             v => v == null ? null : _encryptionService.Encrypt(v),

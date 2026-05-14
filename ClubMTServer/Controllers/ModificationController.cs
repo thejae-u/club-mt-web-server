@@ -22,6 +22,7 @@ public class ModificationController : ControllerBase
     public async Task<ActionResult<IEnumerable<ModificationTask>>> GetTasks()
     {
         return await _context.ModificationTasks
+            .Include(t => t.Comments)
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync();
     }
@@ -90,6 +91,57 @@ public class ModificationController : ControllerBase
         if (task == null) return NotFound();
 
         _context.ModificationTasks.Remove(task);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    // --- COMMENTS ---
+
+    [HttpGet("{taskId}/comments")]
+    public async Task<ActionResult<IEnumerable<ModificationComment>>> GetComments(int taskId)
+    {
+        return await _context.ModificationComments
+            .Where(c => c.TaskId == taskId)
+            .OrderBy(c => c.CreatedAt)
+            .ToListAsync();
+    }
+
+    [HttpPost("{taskId}/comments")]
+    public async Task<ActionResult<ModificationComment>> AddComment(int taskId, [FromBody] string content)
+    {
+        if (string.IsNullOrWhiteSpace(content)) return BadRequest("댓글 내용을 입력해주세요.");
+
+        var task = await _context.ModificationTasks.FindAsync(taskId);
+        if (task == null) return NotFound("요청을 찾을 수 없습니다.");
+
+        var comment = new ModificationComment
+        {
+            TaskId = taskId,
+            Content = content,
+            Author = User.Identity?.Name ?? "Unknown",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.ModificationComments.Add(comment);
+        await _context.SaveChangesAsync();
+
+        return Ok(comment);
+    }
+
+    [HttpDelete("comments/{commentId}")]
+    public async Task<IActionResult> DeleteComment(int commentId)
+    {
+        var comment = await _context.ModificationComments.FindAsync(commentId);
+        if (comment == null) return NotFound();
+
+        // Permission check: Only requester (author) can delete
+        if (comment.Author != User.Identity?.Name)
+        {
+            return Forbid("댓글 삭제 권한이 없습니다. (본인만 삭제 가능)");
+        }
+
+        _context.ModificationComments.Remove(comment);
         await _context.SaveChangesAsync();
 
         return NoContent();

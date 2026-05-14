@@ -13,11 +13,13 @@ namespace ClubMTServer.Controllers;
 public class ManittoController : ControllerBase
 {
     private readonly ParticipantDbContext _context;
+    private readonly SettingsDbContext _settingsContext;
     private readonly ClubMTServer.Services.EncryptionService _encryption;
 
-    public ManittoController(ParticipantDbContext context, ClubMTServer.Services.EncryptionService encryption)
+    public ManittoController(ParticipantDbContext context, SettingsDbContext settingsContext, ClubMTServer.Services.EncryptionService encryption)
     {
         _context = context;
+        _settingsContext = settingsContext;
         _encryption = encryption;
     }
 
@@ -35,6 +37,7 @@ public class ManittoController : ControllerBase
     [EnableRateLimiting("submit")]
     public async Task<IActionResult> PostReport([FromBody] ManittoReportRequest request)
     {
+        // ... (existing implementation)
         if (string.IsNullOrWhiteSpace(request.Content)) return BadRequest("내용을 입력해주세요.");
         if (request.Content.Length > 1000) return BadRequest("제보 내용은 1000자 이내로 작성해주세요.");
 
@@ -120,41 +123,109 @@ public class ManittoController : ControllerBase
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<object>> GetMyManitto()
     {
+        var settings = await _settingsContext.Settings.FirstOrDefaultAsync();
+        if (settings == null || !settings.IsManittoPublic)
+        {
+            return Ok(new { message = "마니또 정보가 아직 공개되지 않았습니다. 공개 시 알림을 확인해주세요!" });
+        }
+
         var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (idClaim == null || !int.TryParse(idClaim, out var id)) return Unauthorized();
 
-        var p = await _context.Participants.FindAsync(id);
+        var p = await _context.Participants
+            .Include(p => p.ManittoAssignment)
+            .FirstOrDefaultAsync(p => p.Id == id);
+            
         if (p == null) return NotFound();
 
-        if (p.ManittoTargetId == null) return Ok(new { message = "아직 마니또가 배정되지 않았습니다." });
+        if (p.ManittoAssignment == null || p.ManittoAssignment.TargetId == null) 
+            return Ok(new { message = "아직 마니또가 배정되지 않았습니다." });
 
-        var target = await _context.Participants.FindAsync(p.ManittoTargetId);
-        var mission = await _context.ManittoMissions.FindAsync(p.ManittoMissionId);
+        var target = await _context.Participants.FindAsync(p.ManittoAssignment.TargetId);
+        
+        // Handle multiple missions
+        var missionData = new List<object>();
+        if (!string.IsNullOrEmpty(p.ManittoAssignment.MissionsJson))
+        {
+            var missions = System.Text.Json.JsonSerializer.Deserialize<List<ParticipantMission>>(p.ManittoAssignment.MissionsJson);
+            if (missions != null)
+            {
+                var missionModels = await _context.ManittoMissions.ToListAsync();
+                foreach (var m in missions)
+                {
+                    var model = missionModels.FirstOrDefault(mm => mm.Id == m.MissionId);
+                    missionData.Add(new {
+                        MissionId = m.MissionId,
+                        Description = model?.Description ?? "Unknown Mission",
+                        IsComplete = m.IsComplete
+                    });
+                }
+            }
+        }
+        else if (p.ManittoAssignment.MissionId != null) // Fallback for legacy data
+        {
+            var mission = await _context.ManittoMissions.FindAsync(p.ManittoAssignment.MissionId);
+            missionData.Add(new {
+                MissionId = p.ManittoAssignment.MissionId,
+                Description = mission?.Description ?? "Unknown Mission",
+                IsComplete = p.ManittoAssignment.IsMissionComplete
+            });
+        }
 
         return new
         {
             TargetName = target != null ? target.Name : "Unknown",
             TargetGeneration = target?.Generation ?? 0,
-            MissionDescription = mission?.Description ?? "미션이 없습니다.",
-            IsComplete = p.IsManittoMissionComplete
+            Missions = missionData,
+            IsComplete = p.ManittoAssignment.IsMissionComplete // Legacy single status
         };
     }
 
-    [HttpPost("me/complete-mission")]
+    [HttpPost("me/complete-mission/{missionId}")]
     [Authorize]
-    public async Task<IActionResult> CompleteMission()
+    public async Task<IActionResult> CompleteMission(int missionId)
     {
         var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (idClaim == null || !int.TryParse(idClaim, out var id)) return Unauthorized();
 
-        var p = await _context.Participants.FindAsync(id);
+        var p = await _context.Participants
+            .Include(p => p.ManittoAssignment)
+            .FirstOrDefaultAsync(p => p.Id == id);
+            
         if (p == null) return NotFound();
+        if (p.ManittoAssignment == null) return BadRequest("마니또 배정 정보가 없습니다.");
 
-        if (p.ManittoMissionId == null) return BadRequest("배정된 미션이 없습니다.");
+        if (!string.IsNullOrEmpty(p.ManittoAssignment.MissionsJson))
+        {
+            var missions = System.Text.Json.JsonSerializer.Deserialize<List<ParticipantMission>>(p.ManittoAssignment.MissionsJson);
+            if (missions != null)
+            {
+                var mission = missions.FirstOrDefault(m => m.MissionId == missionId);
+                if (mission != null)
+                {
+                    mission.IsComplete = true;
+                    p.ManittoAssignment.MissionsJson = System.Text.Json.JsonSerializer.Serialize(missions);
+                    await _context.SaveChangesAsync();
+                    return Ok(new { message = "미션 완료 처리가 되었습니다!" });
+                }
+            }
+        }
+        
+        if (p.ManittoAssignment.MissionId == missionId)
+        {
+            p.ManittoAssignment.IsMissionComplete = true;
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "미션 완료 처리가 되었습니다!" });
+        }
 
-        p.IsManittoMissionComplete = true;
-        await _context.SaveChangesAsync();
+        return BadRequest("해당 미션을 찾을 수 없습니다.");
+    }
 
-        return Ok(new { message = "미션 완료 처리가 되었습니다!" });
+    // Helper class for JSON serialization
+    public class ParticipantMission
+    {
+        public int MissionId { get; set; }
+        public bool IsComplete { get; set; }
     }
 }
+

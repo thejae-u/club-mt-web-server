@@ -18,4 +18,6 @@ public class ModificationTask
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? CompletedAt { get; set; }
+
+    public virtual ICollection<ModificationComment> Comments { get; set; } = new List<ModificationComment>();
 }

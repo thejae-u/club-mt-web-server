@@ -80,10 +80,8 @@ public class Participant
 
     public string? CommonChecklistStatusJson { get; set; } // JSON string for personal status of common tasks
 
-    // Manitto Properties
-    public int? ManittoTargetId { get; set; } // The ID of the person this participant is taking care of
-    public int? ManittoMissionId { get; set; } // The ID of the randomly assigned mission
-    public bool IsManittoMissionComplete { get; set; } = false; // Whether the mission is marked as complete
+    // Manitto Relation
+    public virtual ManittoAssignment? ManittoAssignment { get; set; }
 
     public string? MbtiResult { get; set; } // EPHA, ITSL, ETHL, ITSA
 

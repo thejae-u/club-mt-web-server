@@ -148,7 +148,6 @@ public class ManagementController : ControllerBase
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> AddMissions([FromBody] List<string> missions)
     {
-        // ... (existing implementation)
         if (missions == null || !missions.Any()) return BadRequest("미션 목록이 비어있습니다.");
 
         var newMissions = missions.Select(m => new ManittoMission { Description = m }).ToList();
@@ -179,37 +178,56 @@ public class ManagementController : ControllerBase
 
     [HttpPost("manitto/match")]
     [Authorize(Roles = "admin")]
-    public async Task<IActionResult> MatchManitto()
+    public async Task<IActionResult> MatchManitto([FromBody] int? customMissionCount, [FromServices] SettingsDbContext settingsContext)
     {
-        // ... existing match logic
+        var settings = await settingsContext.Settings.FirstOrDefaultAsync();
+        int missionCount = customMissionCount ?? settings?.ManittoMissionCount ?? 3;
+
         var participants = await _participantContext.Participants
+            .Include(p => p.ManittoAssignment)
             .Where(p => p.IsRegistered)
             .ToListAsync();
 
         if (participants.Count < 2) return BadRequest("마니또 매칭을 위해서는 최소 2명의 참가자가 필요합니다.");
 
         var missions = await _participantContext.ManittoMissions.ToListAsync();
-        if (!missions.Any()) return BadRequest("배정할 미션이 없습니다. 미션을 먼저 등록해주세요.");
+        if (missions.Count < missionCount) return BadRequest($"마니또 매칭을 위해서는 최소 {missionCount}개의 미션이 등록되어 있어야 합니다.");
 
         // Secure Shuffle
         var rng = new Random();
         var shuffled = participants.OrderBy(_ => rng.Next()).ToList();
 
-        // Circular Matching
+        // Circular Matching with N Random Missions
         for (int i = 0; i < shuffled.Count; i++)
         {
             var current = shuffled[i];
             var target = shuffled[(i + 1) % shuffled.Count];
-            var randomMission = missions[rng.Next(missions.Count)];
+            
+            // Assign N random unique missions
+            var randomMissions = missions.OrderBy(_ => rng.Next()).Take(missionCount).ToList();
+            var participantMissions = randomMissions.Select(m => new ManittoController.ParticipantMission 
+            { 
+                MissionId = m.Id, 
+                IsComplete = false 
+            }).ToList();
 
-            current.ManittoTargetId = target.Id;
-            current.ManittoMissionId = randomMission.Id;
-            current.IsManittoMissionComplete = false;
+            if (current.ManittoAssignment == null)
+            {
+                current.ManittoAssignment = new ManittoAssignment { ParticipantId = current.Id };
+                _participantContext.ManittoAssignments.Add(current.ManittoAssignment);
+            }
+
+            current.ManittoAssignment.TargetId = target.Id;
+            current.ManittoAssignment.MissionsJson = System.Text.Json.JsonSerializer.Serialize(participantMissions);
+            
+            // Legacy field support
+            current.ManittoAssignment.MissionId = randomMissions.Any() ? randomMissions[0].Id : null;
+            current.ManittoAssignment.IsMissionComplete = false;
         }
 
         await _participantContext.SaveChangesAsync();
 
-        return Ok(new { message = $"{shuffled.Count}명의 마니또 매칭이 완료되었습니다." });
+        return Ok(new { message = $"{shuffled.Count}명의 마니또 매칭이 완료되었습니다. (인당 {missionCount}개의 미션 부여)" });
     }
 
     [HttpGet("manitto/assignments")]
@@ -217,38 +235,105 @@ public class ManagementController : ControllerBase
     public async Task<ActionResult<IEnumerable<object>>> GetManittoAssignments()
     {
         var participants = await _participantContext.Participants
+            .Include(p => p.ManittoAssignment)
             .Where(p => p.IsRegistered)
             .ToListAsync();
         
         var missions = await _participantContext.ManittoMissions.ToListAsync();
 
-        return participants.Select(p => new
-        {
-            p.Id,
-            p.Name, // Automatically decrypted by EF Core
-            p.Generation,
-            p.ManittoTargetId,
-            p.ManittoMissionId,
-            p.IsManittoMissionComplete,
-            TargetName = p.ManittoTargetId != null 
-                ? participants.FirstOrDefault(t => t.Id == p.ManittoTargetId)?.Name 
-                : null,
-            MissionDescription = missions.FirstOrDefault(m => m.Id == p.ManittoMissionId)?.Description
+        return participants.Select(p => {
+            var assignedMissions = new List<object>();
+            if (p.ManittoAssignment != null)
+            {
+                if (!string.IsNullOrEmpty(p.ManittoAssignment.MissionsJson))
+                {
+                    var pMissions = System.Text.Json.JsonSerializer.Deserialize<List<ManittoController.ParticipantMission>>(p.ManittoAssignment.MissionsJson);
+                    if (pMissions != null)
+                    {
+                        foreach (var pm in pMissions)
+                        {
+                            var m = missions.FirstOrDefault(mm => mm.Id == pm.MissionId);
+                            assignedMissions.Add(new {
+                                pm.MissionId,
+                                Description = m?.Description ?? "Unknown",
+                                pm.IsComplete
+                            });
+                        }
+                    }
+                }
+                else if (p.ManittoAssignment.MissionId != null)
+                {
+                    var m = missions.FirstOrDefault(mm => mm.Id == p.ManittoAssignment.MissionId);
+                    assignedMissions.Add(new {
+                        MissionId = p.ManittoAssignment.MissionId,
+                        Description = m?.Description ?? "Unknown",
+                        IsComplete = p.ManittoAssignment.IsMissionComplete
+                    });
+                }
+            }
+
+            return new
+            {
+                p.Id,
+                p.Name,
+                p.Generation,
+                ManittoTargetId = p.ManittoAssignment?.TargetId,
+                Missions = assignedMissions,
+                TargetName = p.ManittoAssignment?.TargetId != null 
+                    ? participants.FirstOrDefault(t => t.Id == p.ManittoAssignment.TargetId)?.Name 
+                    : null
+            };
         }).ToList();
+    }
+
+    [HttpPost("manitto/toggle-visibility")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> ToggleManittoVisibility([FromServices] SettingsDbContext settingsContext)
+    {
+        var settings = await settingsContext.Settings.FirstOrDefaultAsync();
+        if (settings == null) return NotFound();
+
+        settings.IsManittoPublic = !settings.IsManittoPublic;
+        await settingsContext.SaveChangesAsync();
+
+        return Ok(new { isPublic = settings.IsManittoPublic, message = settings.IsManittoPublic ? "마니또 정보가 공개되었습니다." : "마니또 정보가 비공개 처리되었습니다." });
     }
 
     [HttpPut("manitto/assignments/{id}")]
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> UpdateManittoAssignment(int id, [FromBody] ManittoUpdateDto dto)
     {
-        var p = await _participantContext.Participants.FindAsync(id);
+        var p = await _participantContext.Participants
+            .Include(p => p.ManittoAssignment)
+            .FirstOrDefaultAsync(p => p.Id == id);
+            
         if (p == null) return NotFound();
 
+        if (p.ManittoAssignment == null)
+        {
+            p.ManittoAssignment = new ManittoAssignment { ParticipantId = p.Id };
+            _participantContext.ManittoAssignments.Add(p.ManittoAssignment);
+        }
+
         // Update target/mission only if a value is provided OR explicit clear is requested
-        if (dto.TargetId != null || dto.IsTargetCleared) p.ManittoTargetId = dto.TargetId;
-        if (dto.MissionId != null || dto.IsMissionCleared) p.ManittoMissionId = dto.MissionId;
-        if (dto.IsComplete.HasValue) p.IsManittoMissionComplete = dto.IsComplete.Value;
+        if (dto.TargetId != null || dto.IsTargetCleared) p.ManittoAssignment.TargetId = dto.TargetId;
         
+        if (dto.Missions != null)
+        {
+            p.ManittoAssignment.MissionsJson = System.Text.Json.JsonSerializer.Serialize(dto.Missions);
+            // Sync legacy field with the first mission if available
+            if (dto.Missions.Any())
+            {
+                p.ManittoAssignment.MissionId = dto.Missions[0].MissionId;
+                p.ManittoAssignment.IsMissionComplete = dto.Missions[0].IsComplete;
+            }
+        }
+        else
+        {
+            if (dto.MissionId != null || dto.IsMissionCleared) p.ManittoAssignment.MissionId = dto.MissionId;
+            if (dto.IsComplete.HasValue) p.ManittoAssignment.IsMissionComplete = dto.IsComplete.Value;
+        }
+
         await _participantContext.SaveChangesAsync();
         return Ok(new { message = "마니또 정보가 수정되었습니다." });
     }
@@ -273,10 +358,37 @@ public class ManagementController : ControllerBase
         if (admin == null || !BCrypt.Net.BCrypt.Verify(req.Password, admin.PasswordHash)) return Unauthorized("비밀번호가 일치하지 않습니다.");
         
         _participantContext.Participants.RemoveRange(_participantContext.Participants);
-        _participantContext.ManittoMissions.RemoveRange(_participantContext.ManittoMissions);
+        _participantContext.ManittoAssignments.RemoveRange(_participantContext.ManittoAssignments);
         _participantContext.ManittoReports.RemoveRange(_participantContext.ManittoReports);
         await _participantContext.SaveChangesAsync();
-        return Ok(new { message = "모든 참가 정보가 초기화되었습니다." });
+        return Ok(new { message = "모든 참가 및 마니또 배정 정보가 초기화되었습니다." });
+    }
+
+    [HttpPost("reset-manitto")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> ResetManitto([FromBody] ResetRequestDto req)
+    {
+        var admin = await _memberContext.AdminUsers.FirstOrDefaultAsync(u => u.Username == User.Identity!.Name);
+        if (admin == null || !BCrypt.Net.BCrypt.Verify(req.Password, admin.PasswordHash)) return Unauthorized("비밀번호가 일치하지 않습니다.");
+        
+        _participantContext.ManittoAssignments.RemoveRange(_participantContext.ManittoAssignments);
+        await _participantContext.SaveChangesAsync();
+        return Ok(new { message = "마니또 배정 정보만 초기화되었습니다." });
+    }
+
+    [HttpPost("manitto/missions/delete-batch")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> DeleteMissions([FromBody] List<int> ids)
+    {
+        if (ids == null || !ids.Any()) return BadRequest("삭제할 미션 ID 목록이 없습니다.");
+
+        var missions = await _participantContext.ManittoMissions.Where(m => ids.Contains(m.Id)).ToListAsync();
+        if (!missions.Any()) return NotFound("삭제할 미션을 찾을 수 없습니다.");
+
+        _participantContext.ManittoMissions.RemoveRange(missions);
+        await _participantContext.SaveChangesAsync();
+
+        return Ok(new { message = $"{missions.Count}개의 미션이 삭제되었습니다." });
     }
 
     // --- ADMIN ACCOUNT MANAGEMENT ---
@@ -356,4 +468,5 @@ public class ManittoUpdateDto
     public int? MissionId { get; set; }
     public bool IsMissionCleared { get; set; }
     public bool? IsComplete { get; set; }
+    public List<ManittoController.ParticipantMission>? Missions { get; set; }
 }

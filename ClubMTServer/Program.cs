@@ -300,6 +300,40 @@ try
         try { memberDb.Database.ExecuteSqlRaw("ALTER TABLE AdminUsers ADD COLUMN CurrentSessionId TEXT NULL;"); } catch { /* Already exists */ }
         try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN CurrentSessionId TEXT NULL;"); } catch { /* Already exists */ }
 
+        // MANUAL MIGRATION: Multiple Missions and Visibility
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsManittoPublic INTEGER NOT NULL DEFAULT 0;"); } catch { /* Already exists */ }
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN ManittoMissionCount INTEGER NOT NULL DEFAULT 3;"); } catch { /* Already exists */ }
+        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN ManittoMissionsJson TEXT NULL;"); } catch { /* Already exists */ }
+
+        // MANUAL MIGRATION: ModificationComments Table
+        try 
+        { 
+            modificationDb.Database.ExecuteSqlRaw(@"
+                CREATE TABLE IF NOT EXISTS ModificationComments (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    TaskId INTEGER NOT NULL,
+                    Content TEXT NOT NULL,
+                    Author TEXT NOT NULL,
+                    CreatedAt TEXT NOT NULL,
+                    CONSTRAINT FK_ModificationComments_ModificationTasks_TaskId FOREIGN KEY (TaskId) REFERENCES ModificationTasks (Id) ON DELETE CASCADE
+                );");
+            modificationDb.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_ModificationComments_TaskId ON ModificationComments (TaskId);");
+        } catch { }
+
+        // MANUAL MIGRATION: ManittoAssignments Table
+        try 
+        { 
+            participantDb.Database.ExecuteSqlRaw(@"
+                CREATE TABLE IF NOT EXISTS ManittoAssignments (
+                    ParticipantId INTEGER PRIMARY KEY,
+                    TargetId INTEGER NULL,
+                    MissionId INTEGER NULL,
+                    IsMissionComplete INTEGER NOT NULL DEFAULT 0,
+                    MissionsJson TEXT NULL,
+                    CONSTRAINT FK_ManittoAssignments_Participants_ParticipantId FOREIGN KEY (ParticipantId) REFERENCES Participants (Id) ON DELETE CASCADE
+                );");
+        } catch { }
+
         // SEED ADMIN USER
         if (!memberDb.AdminUsers.Any())
         {

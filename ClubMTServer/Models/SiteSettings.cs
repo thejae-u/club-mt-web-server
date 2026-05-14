@@ -35,5 +35,9 @@ public class SiteSettings
 
     public string CommonChecklistJson { get; set; } = "[]";
 
+    public bool IsManittoPublic { get; set; } = false;
+
+    public int ManittoMissionCount { get; set; } = 3;
+
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

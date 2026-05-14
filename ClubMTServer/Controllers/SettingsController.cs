@@ -68,6 +68,8 @@ public class SettingsController : ControllerBase
             existing.MaxMilitaryCapacity = settings.MaxMilitaryCapacity;
             existing.ScheduleDataJson = settings.ScheduleDataJson;
             existing.CommonChecklistJson = settings.CommonChecklistJson;
+            existing.IsManittoPublic = settings.IsManittoPublic;
+            existing.ManittoMissionCount = settings.ManittoMissionCount;
             existing.UpdatedAt = DateTime.UtcNow;
         }
 
