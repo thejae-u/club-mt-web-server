@@ -84,6 +84,12 @@ try
             submitOptions.Window = TimeSpan.FromMinutes(1);
             submitOptions.QueueLimit = 0;
         });
+        options.AddFixedWindowLimiter(policyName: "cheer", cheerOptions =>
+        {
+            cheerOptions.PermitLimit = 1000;
+            cheerOptions.Window = TimeSpan.FromSeconds(10);
+            cheerOptions.QueueLimit = 0;
+        });
     });
 
     var dataDir = Path.Combine(AppContext.BaseDirectory, "data");
@@ -101,6 +107,8 @@ try
         options.UseSqlite($"Data Source={Path.Combine(dataDir, "auditlogs.db")}"));
     builder.Services.AddDbContext<ModificationDbContext>(options =>
         options.UseSqlite($"Data Source={Path.Combine(dataDir, "modifications.db")}"));
+    builder.Services.AddDbContext<CookingBattleDbContext>(options =>
+        options.UseSqlite($"Data Source={Path.Combine(dataDir, "cookingbattle.db")}"));
 
     builder.Services.AddSingleton<ClubMTServer.Services.AuditLogQueue>();
     builder.Services.AddHostedService<ClubMTServer.Services.AuditLogProcessor>();
@@ -265,6 +273,7 @@ try
         var participantDb = scope.ServiceProvider.GetRequiredService<ParticipantDbContext>();
         var auditDb = scope.ServiceProvider.GetRequiredService<AuditLogDbContext>();
         var modificationDb = scope.ServiceProvider.GetRequiredService<ModificationDbContext>();
+        var cookingDb = scope.ServiceProvider.GetRequiredService<CookingBattleDbContext>();
 
         memberDb.Database.EnsureCreated();
         settingsDb.Database.EnsureCreated();
@@ -272,6 +281,7 @@ try
         participantDb.Database.EnsureCreated();
         auditDb.Database.EnsureCreated();
         modificationDb.Database.EnsureCreated();
+        cookingDb.Database.EnsureCreated();
 
         // AUTO-MIGRATION: Fill missing NameHash for existing data
         var encryption = scope.ServiceProvider.GetRequiredService<ClubMTServer.Services.EncryptionService>();
@@ -303,6 +313,9 @@ try
         // MANUAL MIGRATION: Multiple Missions and Visibility
         try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsManittoPublic INTEGER NOT NULL DEFAULT 0;"); } catch { /* Already exists */ }
         try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN ManittoMissionCount INTEGER NOT NULL DEFAULT 3;"); } catch { /* Already exists */ }
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsCookingBattlePublic INTEGER NOT NULL DEFAULT 0;"); } catch { /* Already exists */ }
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsCookingBattleVotingActive INTEGER NOT NULL DEFAULT 0;"); } catch { /* Already exists */ }
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN MaxCheerPerPerson INTEGER NOT NULL DEFAULT 10;"); } catch { /* Already exists */ }
         try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN ManittoMissionsJson TEXT NULL;"); } catch { /* Already exists */ }
 
         // MANUAL MIGRATION: ModificationComments Table

@@ -39,5 +39,11 @@ public class SiteSettings
 
     public int ManittoMissionCount { get; set; } = 3;
 
+    public bool IsCookingBattlePublic { get; set; } = false;
+
+    public bool IsCookingBattleVotingActive { get; set; } = false;
+
+    public int MaxCheerPerPerson { get; set; } = 10;
+
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

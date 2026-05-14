@@ -70,6 +70,9 @@ public class SettingsController : ControllerBase
             existing.CommonChecklistJson = settings.CommonChecklistJson;
             existing.IsManittoPublic = settings.IsManittoPublic;
             existing.ManittoMissionCount = settings.ManittoMissionCount;
+            existing.IsCookingBattlePublic = settings.IsCookingBattlePublic;
+            existing.IsCookingBattleVotingActive = settings.IsCookingBattleVotingActive;
+            existing.MaxCheerPerPerson = settings.MaxCheerPerPerson;
             existing.UpdatedAt = DateTime.UtcNow;
         }
 

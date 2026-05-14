@@ -12,12 +12,18 @@ public class ManagementController : ControllerBase
 {
     private readonly MemberDbContext _memberContext;
     private readonly ParticipantDbContext _participantContext;
+    private readonly CookingBattleDbContext _cookingContext;
     private readonly ClubMTServer.Services.EncryptionService _encryption;
 
-    public ManagementController(MemberDbContext memberContext, ParticipantDbContext participantContext, ClubMTServer.Services.EncryptionService encryption)
+    public ManagementController(
+        MemberDbContext memberContext, 
+        ParticipantDbContext participantContext, 
+        CookingBattleDbContext cookingContext,
+        ClubMTServer.Services.EncryptionService encryption)
     {
         _memberContext = memberContext;
         _participantContext = participantContext;
+        _cookingContext = cookingContext;
         _encryption = encryption;
     }
 
@@ -123,6 +129,15 @@ public class ManagementController : ControllerBase
             cohortCounts[i] = confirmed.Count(p => p.Generation == i);
         }
 
+        var cookingBattle = new
+        {
+            ApplicationCount = await _cookingContext.Applications.CountAsync(),
+            AssignmentCount = await _cookingContext.Assignments.CountAsync(),
+            CommentCount = await _cookingContext.Comments.CountAsync(),
+            BlackVotes = await _cookingContext.Votes.CountAsync(v => v.Team == CookingTeam.Black),
+            WhiteVotes = await _cookingContext.Votes.CountAsync(v => v.Team == CookingTeam.White)
+        };
+
         var expectations = registeredOnly
             .Where(p => !string.IsNullOrEmpty(p.OneLineExpectation))
             .OrderByDescending(p => p.CreatedAt)
@@ -141,7 +156,7 @@ public class ManagementController : ControllerBase
             })
             .ToList();
 
-        return new { counts, expectations, cohortCounts };
+        return new { counts, expectations, cohortCounts, cookingBattle };
     }
 
     [HttpPost("manitto/missions")]
@@ -448,6 +463,92 @@ public class ManagementController : ControllerBase
 
         return Ok(new { message = "관리자 계정이 삭제되었습니다." });
     }
+
+    [HttpGet("cooking-battle/applications")]
+    [Authorize(Roles = "admin")]
+    public async Task<ActionResult<IEnumerable<CookingBattleApplication>>> GetCookingBattleApplications()
+    {
+        return await _cookingContext.Applications.OrderByDescending(a => a.CreatedAt).ToListAsync();
+    }
+
+    [HttpPost("cooking-battle/assign-teams")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> AssignCookingTeams([FromBody] CookingBattleAssignmentRequest request)
+    {
+        // 1. Clear existing assignments
+        _cookingContext.Assignments.RemoveRange(_cookingContext.Assignments);
+        await _cookingContext.SaveChangesAsync();
+
+        // 2. Assign Chefs
+        if (request.BlackChefId > 0)
+        {
+            _cookingContext.Assignments.Add(new CookingBattleAssignment { ParticipantId = request.BlackChefId, Team = CookingTeam.Black, Role = CookingRole.OrderChef });
+        }
+        if (request.WhiteChefId > 0)
+        {
+            _cookingContext.Assignments.Add(new CookingBattleAssignment { ParticipantId = request.WhiteChefId, Team = CookingTeam.White, Role = CookingRole.OrderChef });
+        }
+        await _cookingContext.SaveChangesAsync();
+
+        // 3. Get all eligible participants (Registered, not chef, not excluded)
+        var excludedIds = request.ExcludedParticipantIds ?? new List<int>();
+        excludedIds.Add(request.BlackChefId);
+        excludedIds.Add(request.WhiteChefId);
+
+        var eligible = await _participantContext.Participants
+            .Where(p => p.IsRegistered && !excludedIds.Contains(p.Id))
+            .ToListAsync();
+
+        var random = new Random();
+        eligible = eligible.OrderBy(x => random.Next()).ToList();
+
+        // 4. Assign Avatars and Assistants (2 of each per team)
+        int index = 0;
+        foreach (var team in new[] { CookingTeam.Black, CookingTeam.White })
+        {
+            // Avatars
+            for (int i = 0; i < 2 && index < eligible.Count; i++, index++)
+            {
+                _cookingContext.Assignments.Add(new CookingBattleAssignment { ParticipantId = eligible[index].Id, Team = team, Role = CookingRole.Avatar });
+            }
+            // Assistants
+            for (int i = 0; i < 2 && index < eligible.Count; i++, index++)
+            {
+                _cookingContext.Assignments.Add(new CookingBattleAssignment { ParticipantId = eligible[index].Id, Team = team, Role = CookingRole.Assistant });
+            }
+        }
+
+        // 5. Remaining are Spectators
+        while (index < eligible.Count)
+        {
+            _cookingContext.Assignments.Add(new CookingBattleAssignment { ParticipantId = eligible[index].Id, Team = CookingTeam.None, Role = CookingRole.Spectator });
+            index++;
+        }
+
+        await _cookingContext.SaveChangesAsync();
+        return Ok(new { message = "팀 배정이 완료되었습니다." });
+    }
+
+    [HttpPost("cooking-battle/reset")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> ResetCookingBattle([FromBody] ResetRequestDto req)
+    {
+        var admin = await _memberContext.AdminUsers.FirstOrDefaultAsync(u => u.Username == User.Identity!.Name);
+        if (admin == null || !BCrypt.Net.BCrypt.Verify(req.Password, admin.PasswordHash)) return Unauthorized("비밀번호가 일치하지 않습니다.");
+        _cookingContext.Assignments.RemoveRange(_cookingContext.Assignments);
+        _cookingContext.Cheers.RemoveRange(_cookingContext.Cheers);
+        _cookingContext.Votes.RemoveRange(_cookingContext.Votes);
+        _cookingContext.Comments.RemoveRange(_cookingContext.Comments);
+        await _cookingContext.SaveChangesAsync();
+        return Ok(new { message = "요리 배틀 데이터가 초기화되었습니다." });
+    }
+}
+
+public class CookingBattleAssignmentRequest
+{
+    public int BlackChefId { get; set; }
+    public int WhiteChefId { get; set; }
+    public List<int>? ExcludedParticipantIds { get; set; }
 }
 
 public class AdminCreateDto
