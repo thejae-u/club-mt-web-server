@@ -76,6 +76,9 @@ public class ManittoController : ControllerBase
             var p = await _context.Participants.FindAsync(id);
             if (p == null) return Unauthorized();
 
+            if (!p.IsRegistered || p.IsCancelRequested) 
+                return StatusCode(403, new { message = "취소 신청 상태이거나 취소된 참가자는 이용할 수 없습니다." });
+
             var report = new ManittoReport 
             { 
                 Content = request.Content,
@@ -138,6 +141,9 @@ public class ManittoController : ControllerBase
             
         if (p == null) return NotFound();
 
+        if (!p.IsRegistered || p.IsCancelRequested) 
+            return StatusCode(403, new { message = "취소 신청 상태이거나 취소된 참가자는 이용할 수 없습니다." });
+
         if (p.ManittoAssignment == null || p.ManittoAssignment.TargetId == null) 
             return Ok(new { message = "아직 마니또가 배정되지 않았습니다." });
 
@@ -193,6 +199,10 @@ public class ManittoController : ControllerBase
             .FirstOrDefaultAsync(p => p.Id == id);
             
         if (p == null) return NotFound();
+
+        if (!p.IsRegistered || p.IsCancelRequested) 
+            return StatusCode(403, new { message = "취소 신청 상태이거나 취소된 참가자는 이용할 수 없습니다." });
+
         if (p.ManittoAssignment == null) return BadRequest("마니또 배정 정보가 없습니다.");
 
         if (!string.IsNullOrEmpty(p.ManittoAssignment.MissionsJson))

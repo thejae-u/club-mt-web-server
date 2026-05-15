@@ -109,6 +109,8 @@ try
         options.UseSqlite($"Data Source={Path.Combine(dataDir, "modifications.db")}"));
     builder.Services.AddDbContext<CookingBattleDbContext>(options =>
         options.UseSqlite($"Data Source={Path.Combine(dataDir, "cookingbattle.db")}"));
+    builder.Services.AddDbContext<VehicleDbContext>(options =>
+        options.UseSqlite($"Data Source={Path.Combine(dataDir, "vehicles.db")}"));
 
     builder.Services.AddSingleton<ClubMTServer.Services.AuditLogQueue>();
     builder.Services.AddHostedService<ClubMTServer.Services.AuditLogProcessor>();
@@ -274,6 +276,7 @@ try
         var auditDb = scope.ServiceProvider.GetRequiredService<AuditLogDbContext>();
         var modificationDb = scope.ServiceProvider.GetRequiredService<ModificationDbContext>();
         var cookingDb = scope.ServiceProvider.GetRequiredService<CookingBattleDbContext>();
+        var vehicleDb = scope.ServiceProvider.GetRequiredService<VehicleDbContext>();
 
         memberDb.Database.EnsureCreated();
         settingsDb.Database.EnsureCreated();
@@ -282,6 +285,7 @@ try
         auditDb.Database.EnsureCreated();
         modificationDb.Database.EnsureCreated();
         cookingDb.Database.EnsureCreated();
+        vehicleDb.Database.EnsureCreated();
 
         // AUTO-MIGRATION: Fill missing NameHash for existing data
         var encryption = scope.ServiceProvider.GetRequiredService<ClubMTServer.Services.EncryptionService>();
@@ -315,6 +319,7 @@ try
         try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN ManittoMissionCount INTEGER NOT NULL DEFAULT 3;"); } catch { /* Already exists */ }
         try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsCookingBattlePublic INTEGER NOT NULL DEFAULT 0;"); } catch { /* Already exists */ }
         try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsCookingBattleVotingActive INTEGER NOT NULL DEFAULT 0;"); } catch { /* Already exists */ }
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsVehicleAssignmentPublic INTEGER NOT NULL DEFAULT 0;"); } catch { /* Already exists */ }
         try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN MaxCheerPerPerson INTEGER NOT NULL DEFAULT 10;"); } catch { /* Already exists */ }
         try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN ManittoMissionsJson TEXT NULL;"); } catch { /* Already exists */ }
 
@@ -345,6 +350,12 @@ try
                     MissionsJson TEXT NULL,
                     CONSTRAINT FK_ManittoAssignments_Participants_ParticipantId FOREIGN KEY (ParticipantId) REFERENCES Participants (Id) ON DELETE CASCADE
                 );");
+        } catch { }
+
+        // MANUAL MIGRATION: Participants IsCancelRequested Column
+        try 
+        { 
+            participantDb.Database.ExecuteSqlRaw(@"ALTER TABLE Participants ADD COLUMN IsCancelRequested INTEGER NOT NULL DEFAULT 0;");
         } catch { }
 
         // SEED ADMIN USER

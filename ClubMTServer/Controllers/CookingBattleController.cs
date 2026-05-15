@@ -33,6 +33,10 @@ public class CookingBattleController : ControllerBase
         var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (idClaim == null || !int.TryParse(idClaim, out var participantId)) return Unauthorized();
 
+        var pUser = await _participantContext.Participants.FindAsync(participantId);
+        if (pUser == null || !pUser.IsRegistered || pUser.IsCancelRequested) 
+            return StatusCode(403, new { message = "취소 신청 상태이거나 취소된 참가자는 이용할 수 없습니다." });
+
         var settings = await _settingsContext.Settings.FirstOrDefaultAsync();
         var isPublic = settings?.IsCookingBattlePublic ?? false;
 
@@ -109,16 +113,21 @@ public class CookingBattleController : ControllerBase
         };
     }
 
+    public record ApplyChefRequest(string Experience, string SignatureDish);
+
     [HttpPost("apply")]
     [Authorize]
     [EnableRateLimiting("submit")]
-    public async Task<IActionResult> Apply([FromBody] CookingBattleApplication request)
+    public async Task<IActionResult> Apply([FromBody] ApplyChefRequest request)
     {
         var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (idClaim == null || !int.TryParse(idClaim, out var participantId)) return Unauthorized();
 
         var p = await _participantContext.Participants.FindAsync(participantId);
         if (p == null) return Unauthorized();
+
+        if (!p.IsRegistered || p.IsCancelRequested) 
+            return StatusCode(403, new { message = "취소 신청 상태이거나 취소된 참가자는 이용할 수 없습니다." });
 
         var existing = await _context.Applications.FirstOrDefaultAsync(a => a.ParticipantId == participantId);
         if (existing != null) return BadRequest("이미 신청하셨습니다.");
@@ -173,6 +182,10 @@ public class CookingBattleController : ControllerBase
         var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (idClaim == null || !int.TryParse(idClaim, out var participantId)) return Unauthorized();
 
+        var p = await _participantContext.Participants.FindAsync(participantId);
+        if (p == null || !p.IsRegistered || p.IsCancelRequested) 
+            return StatusCode(403, new { message = "취소 신청 상태이거나 취소된 참가자는 이용할 수 없습니다." });
+
         var comment = new CookingBattleComment
         {
             ParticipantId = participantId,
@@ -196,6 +209,10 @@ public class CookingBattleController : ControllerBase
 
         var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (idClaim == null || !int.TryParse(idClaim, out var participantId)) return Unauthorized();
+
+        var p = await _participantContext.Participants.FindAsync(participantId);
+        if (p == null || !p.IsRegistered || p.IsCancelRequested) 
+            return StatusCode(403, new { message = "취소 신청 상태이거나 취소된 참가자는 이용할 수 없습니다." });
 
         var settings = await _settingsContext.Settings.FirstOrDefaultAsync();
         var maxCheer = settings?.MaxCheerPerPerson ?? 10;
@@ -228,6 +245,10 @@ public class CookingBattleController : ControllerBase
 
         var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (idClaim == null || !int.TryParse(idClaim, out var participantId)) return Unauthorized();
+
+        var p = await _participantContext.Participants.FindAsync(participantId);
+        if (p == null || !p.IsRegistered || p.IsCancelRequested) 
+            return StatusCode(403, new { message = "취소 신청 상태이거나 취소된 참가자는 이용할 수 없습니다." });
 
         var existing = await _context.Votes.FirstOrDefaultAsync(v => v.ParticipantId == participantId);
         if (existing != null) return BadRequest("이미 투표하셨습니다.");

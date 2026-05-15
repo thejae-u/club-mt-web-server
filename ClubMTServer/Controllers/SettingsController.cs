@@ -72,6 +72,7 @@ public class SettingsController : ControllerBase
             existing.ManittoMissionCount = settings.ManittoMissionCount;
             existing.IsCookingBattlePublic = settings.IsCookingBattlePublic;
             existing.IsCookingBattleVotingActive = settings.IsCookingBattleVotingActive;
+            existing.IsVehicleAssignmentPublic = settings.IsVehicleAssignmentPublic;
             existing.MaxCheerPerPerson = settings.MaxCheerPerPerson;
             existing.UpdatedAt = DateTime.UtcNow;
         }

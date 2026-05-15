@@ -43,6 +43,8 @@ public class SiteSettings
 
     public bool IsCookingBattleVotingActive { get; set; } = false;
 
+    public bool IsVehicleAssignmentPublic { get; set; } = false;
+
     public int MaxCheerPerPerson { get; set; } = 10;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

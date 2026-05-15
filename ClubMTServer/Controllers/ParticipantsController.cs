@@ -106,7 +106,7 @@ public class ParticipantsController : ControllerBase
             p.PhoneNumber, // Automatically decrypted by EF Core
             p.IsDepositConfirmed, p.IsWaitlisted, p.ChecklistJson,
             p.CommonChecklistStatusJson,
-            p.OneLineExpectation, p.IsRegistered, p.MbtiResult
+            p.OneLineExpectation, p.IsRegistered, p.IsCancelRequested, p.MbtiResult
         };
     }
 
@@ -180,7 +180,7 @@ public class ParticipantsController : ControllerBase
                     p.OneLineExpectation,
                     p.HasDriverLicense, p.DriverLicenseType, p.CanDrive, p.DrivingExperience,
                     p.IsMilitaryPriority, p.MilitaryStatus,
-                    p.IsRegistered, p.IsDepositConfirmed, p.IsWaitlisted,
+                    p.IsRegistered, p.IsDepositConfirmed, p.IsWaitlisted, p.IsCancelRequested,
                     p.CreatedAt
                 }).ToList();
         }
@@ -197,7 +197,7 @@ public class ParticipantsController : ControllerBase
                     p.Generation, 
                     p.ParticipationCount, 
                     p.OneLineExpectation, p.CreatedAt,
-                    p.IsRegistered,
+                    p.IsRegistered, p.IsCancelRequested,
                     p.IsDepositConfirmed,
                     p.IsWaitlisted
                 };
@@ -488,7 +488,7 @@ public class ParticipantsController : ControllerBase
         return Ok(new { message = $"비밀번호가 초기화되었습니다. (초기 비밀번호: {newPassword})" });
     }
 
-    // POST: api/Participants/5/cancel (For Participant Self-Cancellation, Protected by JWT)
+    // POST: api/Participants/5/cancel (For Participant Self-Cancellation or Admin Approval)
     [HttpPost("{id}/cancel")]
     [Authorize]
     public async Task<IActionResult> CancelRegistration(int id, [FromBody] CancelRequestDto? request)
@@ -520,25 +520,91 @@ public class ParticipantsController : ControllerBase
             return BadRequest("이미 신청되지 않은 상태입니다.");
         }
 
-        // Reset registration fields but keep the core identity
-        participant.IsRegistered = false;
-        participant.StudentId = _encryption.Encrypt("");
-        participant.ParticipationCount = 0;
-        participant.MemoryOrExpectation = null;
-        participant.OneLineExpectation = null;
-        participant.MidJoinDetails = null;
-        participant.Transportation = "Walk";
-        participant.IsCarpoolAvailable = false;
-        participant.CarpoolSeats = 0;
-        participant.DepartureArea = null;
-        participant.Allergies = null;
-        participant.Remarks = null;
-        participant.IsMilitaryPriority = false;
-        participant.MilitaryStatus = null;
-        participant.CreatedAt = DateTime.UtcNow; // Record cancellation time or reset
+        if (!isAdmin && participant.IsDepositConfirmed)
+        {
+            return BadRequest("입금이 완료된 상태에서는 신청 취소가 불가능합니다. 관리자에게 문의해주세요.");
+        }
 
+        if (!isAdmin)
+        {
+            // 사용자의 요청인 경우: 실제 취소가 아닌 '취소 요청' 상태로만 변경
+            participant.IsCancelRequested = true;
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "취소 요청이 접수되었습니다. 관리자 승인 후 처리됩니다." });
+        }
+        else
+        {
+            // 관리자의 요청인 경우: 기존의 완전 취소 로직 수행
+            participant.IsRegistered = false;
+            participant.IsCancelRequested = false;
+            participant.StudentId = _encryption.Encrypt("");
+            participant.ParticipationCount = 0;
+            participant.MemoryOrExpectation = null;
+            participant.OneLineExpectation = null;
+            participant.MidJoinDetails = null;
+            participant.Transportation = "Walk";
+            participant.IsCarpoolAvailable = false;
+            participant.CarpoolSeats = 0;
+            participant.DepartureArea = null;
+            participant.Allergies = null;
+            participant.Remarks = null;
+            participant.IsMilitaryPriority = false;
+            participant.MilitaryStatus = null;
+            participant.CreatedAt = DateTime.UtcNow; // Record cancellation time or reset
+
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "신청이 취소 처리되었습니다." });
+        }
+    }
+
+    // POST: api/Participants/5/reject-cancel (ADMIN ONLY)
+    [HttpPost("{id}/reject-cancel")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> RejectCancelRequest(int id)
+    {
+        var participant = await _context.Participants.FindAsync(id);
+        if (participant == null) return NotFound();
+
+        participant.IsCancelRequested = false;
         await _context.SaveChangesAsync();
-        return Ok(new { message = "신청이 취소되었습니다." });
+
+        return Ok(new { message = "취소 요청이 반려되었습니다." });
+    }
+
+    // POST: api/Participants/5/undo-cancel (For Participant to undo their own cancel request)
+    [HttpPost("{id}/undo-cancel")]
+    [Authorize]
+    public async Task<IActionResult> UndoCancelRequest(int id, [FromBody] CancelRequestDto? request)
+    {
+        var participant = await _context.Participants.FindAsync(id);
+        if (participant == null) return NotFound();
+
+        bool isAdmin = User.Claims.Any(c => c.Type == ClaimTypes.Role && c.Value == "admin");
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        bool isOwner = userIdClaim != null && userIdClaim == id.ToString();
+
+        if (!isAdmin && !isOwner)
+        {
+            return Forbid();
+        }
+
+        if (!isAdmin && request != null && !string.IsNullOrEmpty(request.Password))
+        {
+            if (!BCrypt.Net.BCrypt.Verify(request.Password, participant.Password))
+            {
+                return Unauthorized("비밀번호가 일치하지 않습니다.");
+            }
+        }
+
+        if (!participant.IsCancelRequested)
+        {
+            return BadRequest("취소 요청 상태가 아닙니다.");
+        }
+
+        participant.IsCancelRequested = false;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "취소 요청이 철회되었습니다. 다시 정상 신청 상태로 변경되었습니다." });
     }
 
     // DELETE: api/Participants/5 (ADMIN ONLY)

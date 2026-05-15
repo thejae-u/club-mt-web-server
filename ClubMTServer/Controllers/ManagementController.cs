@@ -84,6 +84,17 @@ public class ManagementController : ControllerBase
     public async Task<ActionResult<IEnumerable<object>>> GetMembers()
     {
         bool isAdmin = User.Claims.Any(c => c.Type == System.Security.Claims.ClaimTypes.Role && c.Value == "admin");
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        
+        if (!isAdmin && userIdClaim != null && int.TryParse(userIdClaim, out var id))
+        {
+            var p = await _participantContext.Participants.FindAsync(id);
+            if (p != null && (!p.IsRegistered || p.IsCancelRequested))
+            {
+                return StatusCode(403, new { message = "취소 신청 상태이거나 취소된 참가자는 이용할 수 없습니다." });
+            }
+        }
+
         var members = await _memberContext.Members.ToListAsync();
         return members
             .Select(m => new {
@@ -135,7 +146,9 @@ public class ManagementController : ControllerBase
             AssignmentCount = await _cookingContext.Assignments.CountAsync(),
             CommentCount = await _cookingContext.Comments.CountAsync(),
             BlackVotes = await _cookingContext.Votes.CountAsync(v => v.Team == CookingTeam.Black),
-            WhiteVotes = await _cookingContext.Votes.CountAsync(v => v.Team == CookingTeam.White)
+            WhiteVotes = await _cookingContext.Votes.CountAsync(v => v.Team == CookingTeam.White),
+            BlackCheers = await _cookingContext.Cheers.CountAsync(c => c.Team == CookingTeam.Black),
+            WhiteCheers = await _cookingContext.Cheers.CountAsync(c => c.Team == CookingTeam.White)
         };
 
         var expectations = registeredOnly
@@ -529,12 +542,36 @@ public class ManagementController : ControllerBase
         return Ok(new { message = "팀 배정이 완료되었습니다." });
     }
 
+    [HttpGet("cooking-battle/assignments")]
+    [Authorize(Roles = "admin")]
+    public async Task<ActionResult<IEnumerable<object>>> GetCookingBattleAssignments()
+    {
+        var assignments = await _cookingContext.Assignments.ToListAsync();
+        var participants = await _participantContext.Participants
+            .Select(p => new { p.Id, p.Name, p.Generation })
+            .ToListAsync();
+
+        return assignments.Select(a => {
+            var p = participants.FirstOrDefault(pp => pp.Id == a.ParticipantId);
+            return new {
+                a.Id,
+                a.ParticipantId,
+                Name = p?.Name,
+                Generation = p?.Generation,
+                Team = a.Team.ToString(),
+                Role = a.Role.ToString(),
+                a.UpdatedAt
+            };
+        }).ToList();
+    }
+
     [HttpPost("cooking-battle/reset")]
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> ResetCookingBattle([FromBody] ResetRequestDto req)
     {
         var admin = await _memberContext.AdminUsers.FirstOrDefaultAsync(u => u.Username == User.Identity!.Name);
         if (admin == null || !BCrypt.Net.BCrypt.Verify(req.Password, admin.PasswordHash)) return Unauthorized("비밀번호가 일치하지 않습니다.");
+        _cookingContext.Applications.RemoveRange(_cookingContext.Applications);
         _cookingContext.Assignments.RemoveRange(_cookingContext.Assignments);
         _cookingContext.Cheers.RemoveRange(_cookingContext.Cheers);
         _cookingContext.Votes.RemoveRange(_cookingContext.Votes);

@@ -76,6 +76,8 @@ public class Participant
 
     public bool IsDepositConfirmed { get; set; } = false;
 
+    public bool IsCancelRequested { get; set; } = false; // 취소 요청 상태
+
     public string? ChecklistJson { get; set; } // JSON string for personal tasks
 
     public string? CommonChecklistStatusJson { get; set; } // JSON string for personal status of common tasks
