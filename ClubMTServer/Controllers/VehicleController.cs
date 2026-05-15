@@ -14,12 +14,14 @@ public class VehicleController : ControllerBase
     private readonly VehicleDbContext _context;
     private readonly ParticipantDbContext _participantContext;
     private readonly SettingsDbContext _settingsContext;
+    private readonly MemberDbContext _memberContext;
 
-    public VehicleController(VehicleDbContext context, ParticipantDbContext participantContext, SettingsDbContext settingsContext)
+    public VehicleController(VehicleDbContext context, ParticipantDbContext participantContext, SettingsDbContext settingsContext, MemberDbContext memberContext)
     {
         _context = context;
         _participantContext = participantContext;
         _settingsContext = settingsContext;
+        _memberContext = memberContext;
     }
 
     [HttpGet("all")]
@@ -268,8 +270,11 @@ public class VehicleController : ControllerBase
 
     [HttpPost("admin/reset")]
     [Authorize(Roles = "admin")]
-    public async Task<IActionResult> ResetAssignments()
+    public async Task<IActionResult> ResetAssignments([FromBody] ResetRequestDto req)
     {
+        var admin = await _memberContext.AdminUsers.FirstOrDefaultAsync(u => u.Username == User.Identity!.Name);
+        if (admin == null || !BCrypt.Net.BCrypt.Verify(req.Password, admin.PasswordHash)) return Unauthorized("비밀번호가 일치하지 않습니다.");
+
         _context.VehiclePassengers.RemoveRange(_context.VehiclePassengers);
         _context.Vehicles.RemoveRange(_context.Vehicles);
         await _context.SaveChangesAsync();

@@ -503,56 +503,122 @@ public class ManagementController : ControllerBase
         }
         await _cookingContext.SaveChangesAsync();
 
-        // 3. Get all eligible participants (Registered, not chef, not excluded)
-        var excludedIds = request.ExcludedParticipantIds ?? new List<int>();
-        excludedIds.Add(request.BlackChefId);
-        excludedIds.Add(request.WhiteChefId);
-
-        var eligible = await _participantContext.Participants
-            .Where(p => p.IsRegistered && !excludedIds.Contains(p.Id))
+        // 3. Get all registered participants
+        var allRegistered = await _participantContext.Participants
+            .Where(p => p.IsRegistered)
             .ToListAsync();
 
-        var random = new Random();
-        eligible = eligible.OrderBy(x => random.Next()).ToList();
+        var chefIds = new HashSet<int>();
+        if (request.BlackChefId > 0) chefIds.Add(request.BlackChefId);
+        if (request.WhiteChefId > 0) chefIds.Add(request.WhiteChefId);
 
-        // 4. Assign Avatars and Assistants (2 of each per team)
+        // 4. Participants eligible for random team assignment (not chef, not excluded)
+        var excludedIds = request.ExcludedParticipantIds ?? new List<int>();
+        var eligibleForRoles = allRegistered
+            .Where(p => !chefIds.Contains(p.Id) && !excludedIds.Contains(p.Id))
+            .ToList();
+
+        var random = new Random();
+        eligibleForRoles = eligibleForRoles.OrderBy(x => random.Next()).ToList();
+
+        // 5. Distribute Avatars and Assistants (Round-robin)
         int index = 0;
-        foreach (var team in new[] { CookingTeam.Black, CookingTeam.White })
+        var teams = new[] { CookingTeam.Black, CookingTeam.White };
+        var assignedToRolesIds = new HashSet<int>();
+
+        // 2 Avatars per team
+        for (int i = 0; i < 2; i++)
         {
-            // Avatars
-            for (int i = 0; i < 2 && index < eligible.Count; i++, index++)
+            foreach (var team in teams)
             {
-                _cookingContext.Assignments.Add(new CookingBattleAssignment { ParticipantId = eligible[index].Id, Team = team, Role = CookingRole.Avatar });
-            }
-            // Assistants
-            for (int i = 0; i < 2 && index < eligible.Count; i++, index++)
-            {
-                _cookingContext.Assignments.Add(new CookingBattleAssignment { ParticipantId = eligible[index].Id, Team = team, Role = CookingRole.Assistant });
+                if (index < eligibleForRoles.Count)
+                {
+                    var p = eligibleForRoles[index++];
+                    _cookingContext.Assignments.Add(new CookingBattleAssignment { ParticipantId = p.Id, Team = team, Role = CookingRole.Avatar });
+                    assignedToRolesIds.Add(p.Id);
+                }
             }
         }
 
-        // 5. Remaining are Spectators
-        while (index < eligible.Count)
+        // 2 Assistants per team
+        for (int i = 0; i < 2; i++)
         {
-            _cookingContext.Assignments.Add(new CookingBattleAssignment { ParticipantId = eligible[index].Id, Team = CookingTeam.None, Role = CookingRole.Spectator });
-            index++;
+            foreach (var team in teams)
+            {
+                if (index < eligibleForRoles.Count)
+                {
+                    var p = eligibleForRoles[index++];
+                    _cookingContext.Assignments.Add(new CookingBattleAssignment { ParticipantId = p.Id, Team = team, Role = CookingRole.Assistant });
+                    assignedToRolesIds.Add(p.Id);
+                }
+            }
+        }
+
+        // 6. Everyone else (Excluded or not picked) becomes a Spectator
+        var spectators = allRegistered
+            .Where(p => !chefIds.Contains(p.Id) && !assignedToRolesIds.Contains(p.Id))
+            .ToList();
+
+        foreach (var s in spectators)
+        {
+            _cookingContext.Assignments.Add(new CookingBattleAssignment { ParticipantId = s.Id, Team = CookingTeam.None, Role = CookingRole.Spectator });
         }
 
         await _cookingContext.SaveChangesAsync();
         return Ok(new { message = "팀 배정이 완료되었습니다." });
     }
 
+    [HttpPut("cooking-battle/assignments/{id}")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> UpdateCookingAssignment(int id, [FromBody] CookingBattleAssignment update)
+    {
+        var existing = await _cookingContext.Assignments.FindAsync(id);
+        if (existing == null) return NotFound();
+
+        existing.Team = update.Team;
+        existing.Role = update.Role;
+        existing.UpdatedAt = DateTime.UtcNow;
+
+        await _cookingContext.SaveChangesAsync();
+        return Ok();
+    }
+
+    [HttpDelete("cooking-battle/assignments/{id}")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> DeleteCookingAssignment(int id)
+    {
+        var existing = await _cookingContext.Assignments.FindAsync(id);
+        if (existing == null) return NotFound();
+
+        _cookingContext.Assignments.Remove(existing);
+        await _cookingContext.SaveChangesAsync();
+        return Ok();
+    }
+
     [HttpGet("cooking-battle/assignments")]
     [Authorize(Roles = "admin")]
-    public async Task<ActionResult<IEnumerable<object>>> GetCookingBattleAssignments()
+    public async Task<ActionResult<IEnumerable<object>>> GetCookingBattleAssignments([FromServices] SettingsDbContext settingsContext)
     {
         var assignments = await _cookingContext.Assignments.ToListAsync();
         var participants = await _participantContext.Participants
             .Select(p => new { p.Id, p.Name, p.Generation })
             .ToListAsync();
+        
+        var cheers = await _cookingContext.Cheers.ToListAsync();
+        var votes = await _cookingContext.Votes.ToListAsync();
+        var comments = await _cookingContext.Comments.ToListAsync();
+        var settings = await settingsContext.Settings.FirstOrDefaultAsync();
+        var maxCheer = settings?.MaxCheerPerPerson ?? 10;
 
         return assignments.Select(a => {
             var p = participants.FirstOrDefault(pp => pp.Id == a.ParticipantId);
+            var participantCheers = cheers.Count(c => c.ParticipantId == a.ParticipantId);
+            var vote = votes.FirstOrDefault(v => v.ParticipantId == a.ParticipantId);
+            var participantComments = comments
+                .Where(c => c.ParticipantId == a.ParticipantId)
+                .Select(c => new { c.Id, c.Content, Team = c.Team.ToString(), c.CreatedAt })
+                .ToList();
+
             return new {
                 a.Id,
                 a.ParticipantId,
@@ -560,9 +626,38 @@ public class ManagementController : ControllerBase
                 Generation = p?.Generation,
                 Team = a.Team.ToString(),
                 Role = a.Role.ToString(),
-                a.UpdatedAt
+                a.UpdatedAt,
+                CheersCount = participantCheers,
+                RemainingCheers = Math.Max(0, maxCheer - participantCheers),
+                VoteTeam = vote?.Team.ToString(),
+                Comments = participantComments
             };
         }).ToList();
+    }
+
+    [HttpDelete("cooking-battle/comments/{id}")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> DeleteCookingComment(int id)
+    {
+        var comment = await _cookingContext.Comments.FindAsync(id);
+        if (comment == null) return NotFound();
+
+        _cookingContext.Comments.Remove(comment);
+        await _cookingContext.SaveChangesAsync();
+        return Ok(new { message = "한줄평이 삭제되었습니다." });
+    }
+
+    [HttpPost("cooking-battle/reset-teams")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> ResetCookingTeams([FromBody] ResetRequestDto req)
+    {
+        var admin = await _memberContext.AdminUsers.FirstOrDefaultAsync(u => u.Username == User.Identity!.Name);
+        if (admin == null || !BCrypt.Net.BCrypt.Verify(req.Password, admin.PasswordHash)) return Unauthorized("비밀번호가 일치하지 않습니다.");
+
+        var nonChefs = await _cookingContext.Assignments.Where(a => a.Role != CookingRole.OrderChef).ToListAsync();
+        _cookingContext.Assignments.RemoveRange(nonChefs);
+        await _cookingContext.SaveChangesAsync();
+        return Ok(new { message = "팀 배정 정보가 초기화되었습니다. (오더 셰프 유지)" });
     }
 
     [HttpPost("cooking-battle/reset")]
