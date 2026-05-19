@@ -656,8 +656,14 @@ public class ManagementController : ControllerBase
 
         var nonChefs = await _cookingContext.Assignments.Where(a => a.Role != CookingRole.OrderChef).ToListAsync();
         _cookingContext.Assignments.RemoveRange(nonChefs);
+
+        // Also clear interactions
+        _cookingContext.Votes.RemoveRange(_cookingContext.Votes);
+        _cookingContext.Cheers.RemoveRange(_cookingContext.Cheers);
+        _cookingContext.Comments.RemoveRange(_cookingContext.Comments);
+
         await _cookingContext.SaveChangesAsync();
-        return Ok(new { message = "팀 배정 정보가 초기화되었습니다. (오더 셰프 유지)" });
+        return Ok(new { message = "팀 배정 정보 및 관련 투표/응원/한줄평이 모두 초기화되었습니다. (오더 셰프 유지)" });
     }
 
     [HttpPost("cooking-battle/reset")]

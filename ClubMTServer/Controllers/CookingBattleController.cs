@@ -39,6 +39,7 @@ public class CookingBattleController : ControllerBase
 
         var settings = await _settingsContext.Settings.FirstOrDefaultAsync();
         var isPublic = settings?.IsCookingBattlePublic ?? false;
+        var isChefPublic = settings?.IsCookingBattleChefPublic ?? false;
 
         var myApplication = await _context.Applications
             .FirstOrDefaultAsync(a => a.ParticipantId == participantId);
@@ -47,7 +48,7 @@ public class CookingBattleController : ControllerBase
             .FirstOrDefaultAsync(a => a.ParticipantId == participantId);
 
         var teams = new List<object>();
-        if (isPublic)
+        if (isPublic || isChefPublic)
         {
             var assignments = await _context.Assignments.ToListAsync();
             var participants = await _participantContext.Participants
@@ -72,15 +73,15 @@ public class CookingBattleController : ControllerBase
                         chefApp?.Experience,
                         chefApp?.SignatureDish
                     } : null,
-                    Members = teamAssignments
+                    Members = isPublic ? teamAssignments
                         .Where(a => a.Role != CookingRole.OrderChef)
                         .Select(a => {
                             var p = participants.FirstOrDefault(p => p.Id == a.ParticipantId);
-                            return new { 
+                            return (object)new { 
                                 Name = p?.Name ?? "Unknown", 
                                 Role = a.Role.ToString() 
                             };
-                        })
+                        }).ToList() : new List<object>()
                 });
             }
         }
@@ -89,20 +90,39 @@ public class CookingBattleController : ControllerBase
         var whiteCheers = await _context.Cheers.CountAsync(c => c.Team == CookingTeam.White);
         var totalCheers = blackCheers + whiteCheers;
 
-        var maxCheer = settings?.MaxCheerPerPerson ?? 10;
-        var spectatorsCount = await _context.Assignments.CountAsync(a => a.Role == CookingRole.Spectator);
-        double maxPossibleCheers = (spectatorsCount > 0 ? spectatorsCount : 1) * maxCheer;
+        var totalParticipantsCount = await _participantContext.Participants.CountAsync(p => p.IsRegistered);
+        
+        // Realistic Target: Average 2.5 cheers per person, but at least 20 cheers total for stability
+        double realisticTarget = Math.Max(20, (totalParticipantsCount > 0 ? totalParticipantsCount : 1) * 2.5);
 
-        double blackPct = Math.Min(100, (blackCheers / maxPossibleCheers) * 100);
-        double whitePct = Math.Min(100, (whiteCheers / maxPossibleCheers) * 100);
+        // Non-linear (Square Root) scaling: Early cheers move more, later cheers move less.
+        double CalculatePct(int count) {
+            if (count == 0) return 0;
+            if (count >= realisticTarget) return 100.0;
 
+            double basePct = 15.0; // 15% minimum offset for the first cheer
+            
+            // Scaling logic: (sqrt(count) / sqrt(target)) * 85
+            // This curves the progression so it doesn't jump to 100 too fast
+            double ratio = Math.Sqrt(count) / Math.Sqrt(realisticTarget);
+            double progressPct = ratio * 85.0;
+            
+            return Math.Min(100, basePct + progressPct);
+        }
+
+        var blackPct = CalculatePct(blackCheers);
+        var whitePct = CalculatePct(whiteCheers);
+
+        var myVote = await _context.Votes.FirstOrDefaultAsync(v => v.ParticipantId == participantId);
+        
         return new
         {
             IsPublic = isPublic,
+            IsChefPublic = isChefPublic,
             IsVotingActive = settings?.IsCookingBattleVotingActive ?? false,
             MyApplication = myApplication,
-            MyAssignment = isPublic ? myAssignment : null,
-            Teams = isPublic ? teams : null,
+            MyAssignment = (isPublic || isChefPublic) ? myAssignment : null,
+            Teams = (isPublic || isChefPublic) ? teams : null,
             CheerStats = new {
                 Black = blackCheers,
                 White = whiteCheers,

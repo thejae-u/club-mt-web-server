@@ -41,6 +41,8 @@ public class SiteSettings
 
     public bool IsCookingBattlePublic { get; set; } = false;
 
+    public bool IsCookingBattleChefPublic { get; set; } = false;
+
     public bool IsCookingBattleVotingActive { get; set; } = false;
 
     public bool IsVehicleAssignmentPublic { get; set; } = false;

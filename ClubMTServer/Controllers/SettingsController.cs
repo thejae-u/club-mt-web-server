@@ -48,6 +48,12 @@ public class SettingsController : ControllerBase
             return BadRequest("군인 우대 정원은 일반 정원보다 클 수 없습니다.");
         }
 
+        // Rule: If full public is enabled, chef public must also be enabled.
+        if (settings.IsCookingBattlePublic)
+        {
+            settings.IsCookingBattleChefPublic = true;
+        }
+
         var existing = await _context.Settings.FirstOrDefaultAsync();
         if (existing == null)
         {
@@ -71,6 +77,7 @@ public class SettingsController : ControllerBase
             existing.IsManittoPublic = settings.IsManittoPublic;
             existing.ManittoMissionCount = settings.ManittoMissionCount;
             existing.IsCookingBattlePublic = settings.IsCookingBattlePublic;
+            existing.IsCookingBattleChefPublic = settings.IsCookingBattleChefPublic;
             existing.IsCookingBattleVotingActive = settings.IsCookingBattleVotingActive;
             existing.IsVehicleAssignmentPublic = settings.IsVehicleAssignmentPublic;
             existing.MaxCheerPerPerson = settings.MaxCheerPerPerson;
