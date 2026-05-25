@@ -322,6 +322,11 @@ public class ParticipantsController : ControllerBase
             return BadRequest("비밀번호는 필수 입력 항목입니다.");
         }
 
+        if (reg.Password.Length < 8 || !reg.Password.Any(char.IsLetter) || !reg.Password.Any(char.IsDigit))
+        {
+            return BadRequest("비밀번호는 8자리 이상이며, 영문과 숫자를 모두 포함해야 합니다.");
+        }
+
         // 3. Normalize phone and set password
         var normalizedPhone = new string(reg.PhoneNumber.Where(char.IsDigit).ToArray());
         var finalPassword = reg.Password;
@@ -451,6 +456,10 @@ public class ParticipantsController : ControllerBase
         bool passwordChanged = false;
         if (!string.IsNullOrEmpty(update.Password))
         {
+            if (update.Password.Length < 8 || !update.Password.Any(char.IsLetter) || !update.Password.Any(char.IsDigit))
+            {
+                return BadRequest("비밀번호는 8자리 이상이며, 영문과 숫자를 모두 포함해야 합니다.");
+            }
             participant.Password = BCrypt.Net.BCrypt.HashPassword(update.Password);
             passwordChanged = true;
         }
@@ -486,7 +495,8 @@ public class ParticipantsController : ControllerBase
 
         var phone = _encryption.Decrypt(p.PhoneNumber) ?? "";
         var normalizedPhone = new string(phone.Where(char.IsDigit).ToArray());
-        var newPassword = normalizedPhone.Length >= 4 ? normalizedPhone[^4..] : "0000";
+        var last4Digits = normalizedPhone.Length >= 4 ? normalizedPhone[^4..] : "0000";
+        var newPassword = $"mt{last4Digits}!!";
         
         p.Password = BCrypt.Net.BCrypt.HashPassword(newPassword);
         await _context.SaveChangesAsync();
@@ -681,8 +691,6 @@ public class ParticipantRegistrationDto
     public string Name { get; set; } = string.Empty;
     public int Generation { get; set; }
 
-    [Required]
-    [StringLength(100, MinimumLength = 4, ErrorMessage = "비밀번호는 4자리 이상이어야 합니다.")]
     public string Password { get; set; } = string.Empty; // Hashed password
     public ParticipantType Type { get; set; }
 
