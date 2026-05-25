@@ -116,8 +116,10 @@ public class ManagementController : ControllerBase
         var participants = await _participantContext.Participants.ToListAsync();
         var registeredOnly = participants.Where(p => p.IsRegistered).ToList();
         
-        var confirmed = registeredOnly.Where(p => !p.IsWaitlisted).ToList();
+        // Strictly confirmed: Registered, NOT waitlisted, and NOT requesting cancellation
+        var confirmed = registeredOnly.Where(p => !p.IsWaitlisted && !p.IsCancelRequested).ToList();
         var waitlisted = registeredOnly.Where(p => p.IsWaitlisted).ToList();
+        var canceling = registeredOnly.Where(p => p.IsCancelRequested).ToList();
 
         var counts = new
         {
@@ -130,6 +132,8 @@ public class ManagementController : ControllerBase
             Waitlisted = waitlisted.Count,
             WaitlistedGeneral = waitlisted.Count(p => p.Type != ParticipantType.Military),
             WaitlistedMilitary = waitlisted.Count(p => p.Type == ParticipantType.Military),
+
+            Canceling = canceling.Count,
             
             Total = registeredOnly.Count
         };

@@ -9,6 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using Microsoft.AspNetCore.RateLimiting;
+using System.ComponentModel.DataAnnotations;
 
 namespace ClubMTServer.Controllers;
 
@@ -99,14 +100,19 @@ public class ParticipantsController : ControllerBase
         if (p == null) return NotFound();
 
         return new {
-            p.Id, 
+            p.Id, p.Type, 
             p.Name, // Automatically decrypted by EF Core
             p.Generation, 
-            p.Type, 
+            p.StudentId, // Automatically decrypted by EF Core
             p.PhoneNumber, // Automatically decrypted by EF Core
-            p.IsDepositConfirmed, p.IsWaitlisted, p.ChecklistJson,
-            p.CommonChecklistStatusJson,
-            p.OneLineExpectation, p.IsRegistered, p.IsCancelRequested, p.MbtiResult
+            p.ParticipationCount, p.MemoryOrExpectation,
+            p.ParticipationSchedule, p.MidJoinDetails, p.Transportation,
+            p.IsCarpoolAvailable, p.CarpoolSeats,
+            p.DepartureArea, p.Allergies, p.Remarks, p.OneLineExpectation,
+            p.HasDriverLicense, p.DriverLicenseType, p.CanDrive, p.DrivingExperience,
+            p.IsMilitaryPriority, p.MilitaryStatus, p.IsRegistered, p.IsWaitlisted,
+            p.IsDepositConfirmed, p.IsCancelRequested, p.ChecklistJson,
+            p.CommonChecklistStatusJson, p.MbtiResult
         };
     }
 
@@ -216,7 +222,7 @@ public class ParticipantsController : ControllerBase
         {
             // Try to confirm: Check capacity
             var settings = await settingsContext.Settings.FirstOrDefaultAsync() ?? new SiteSettings();
-            var allRegistered = await _context.Participants.Where(p => p.IsRegistered && !p.IsWaitlisted).ToListAsync();
+            var allRegistered = await _context.Participants.Where(p => p.IsRegistered && !p.IsWaitlisted && !p.IsCancelRequested).ToListAsync();
             
             if (participant.Type == ParticipantType.Military)
             {
@@ -324,7 +330,7 @@ public class ParticipantsController : ControllerBase
         var settings = await settingsContext.Settings.FirstOrDefaultAsync() ?? new SiteSettings();
         bool shouldWaitlist = false;
         
-        var allRegistered = await _context.Participants.Where(p => p.IsRegistered && !p.IsWaitlisted).ToListAsync();
+        var allRegistered = await _context.Participants.Where(p => p.IsRegistered && !p.IsWaitlisted && !p.IsCancelRequested).ToListAsync();
         if (reg.Type == ParticipantType.Military)
         {
             if (allRegistered.Count(p => p.Type == ParticipantType.Military) >= settings.MaxMilitaryCapacity) shouldWaitlist = true;
@@ -560,21 +566,38 @@ public class ParticipantsController : ControllerBase
     // POST: api/Participants/5/reject-cancel (ADMIN ONLY)
     [HttpPost("{id}/reject-cancel")]
     [Authorize(Roles = "admin")]
-    public async Task<IActionResult> RejectCancelRequest(int id)
+    public async Task<IActionResult> RejectCancelRequest(int id, [FromServices] SettingsDbContext settingsContext)
     {
         var participant = await _context.Participants.FindAsync(id);
         if (participant == null) return NotFound();
 
+        // Re-calculate waitlist
+        var settings = await settingsContext.Settings.FirstOrDefaultAsync() ?? new SiteSettings();
+        var allRegistered = await _context.Participants.Where(p => p.IsRegistered && !p.IsWaitlisted && !p.IsCancelRequested && p.Id != participant.Id).ToListAsync();
+        
+        bool shouldWaitlist = false;
+        if (participant.Type == ParticipantType.Military)
+        {
+            if (allRegistered.Count(p => p.Type == ParticipantType.Military) >= settings.MaxMilitaryCapacity) shouldWaitlist = true;
+        }
+        else
+        {
+            if (allRegistered.Count(p => p.Type != ParticipantType.Military) >= settings.MaxGeneralCapacity) shouldWaitlist = true;
+        }
+
         participant.IsCancelRequested = false;
+        participant.CreatedAt = DateTime.UtcNow; // Penalty: Push to end of line
+        participant.IsWaitlisted = shouldWaitlist;
+
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "취소 요청이 반려되었습니다." });
+        return Ok(new { message = "취소 요청이 반려되었습니다. 해당 참가자는 최신 순서로 재배정되었습니다." });
     }
 
     // POST: api/Participants/5/undo-cancel (For Participant to undo their own cancel request)
     [HttpPost("{id}/undo-cancel")]
     [Authorize]
-    public async Task<IActionResult> UndoCancelRequest(int id, [FromBody] CancelRequestDto? request)
+    public async Task<IActionResult> UndoCancelRequest(int id, [FromBody] CancelRequestDto? request, [FromServices] SettingsDbContext settingsContext)
     {
         var participant = await _context.Participants.FindAsync(id);
         if (participant == null) return NotFound();
@@ -601,10 +624,31 @@ public class ParticipantsController : ControllerBase
             return BadRequest("취소 요청 상태가 아닙니다.");
         }
 
+        // Re-calculate waitlist as they are "re-entering"
+        var settings = await settingsContext.Settings.FirstOrDefaultAsync() ?? new SiteSettings();
+        var allRegistered = await _context.Participants.Where(p => p.IsRegistered && !p.IsWaitlisted && !p.IsCancelRequested && p.Id != participant.Id).ToListAsync();
+        
+        bool shouldWaitlist = false;
+        if (participant.Type == ParticipantType.Military)
+        {
+            if (allRegistered.Count(p => p.Type == ParticipantType.Military) >= settings.MaxMilitaryCapacity) shouldWaitlist = true;
+        }
+        else
+        {
+            if (allRegistered.Count(p => p.Type != ParticipantType.Military) >= settings.MaxGeneralCapacity) shouldWaitlist = true;
+        }
+
         participant.IsCancelRequested = false;
+        participant.CreatedAt = DateTime.UtcNow; // Push to end of line
+        participant.IsWaitlisted = shouldWaitlist;
+
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "취소 요청이 철회되었습니다. 다시 정상 신청 상태로 변경되었습니다." });
+        string msg = shouldWaitlist 
+            ? "취소 요청이 철회되었으나, 그 사이 정원이 초과되어 대기자 명단으로 등록되었습니다." 
+            : "취소 요청이 철회되었습니다. 다시 정상 신청 상태로 변경되었습니다.";
+
+        return Ok(new { message = msg, isWaitlisted = shouldWaitlist });
     }
 
     // DELETE: api/Participants/5 (ADMIN ONLY)
@@ -636,9 +680,16 @@ public class ParticipantRegistrationDto
 {
     public string Name { get; set; } = string.Empty;
     public int Generation { get; set; }
-    public string Password { get; set; } = string.Empty; // Phone Last 4
+
+    [Required]
+    [StringLength(100, MinimumLength = 4, ErrorMessage = "비밀번호는 4자리 이상이어야 합니다.")]
+    public string Password { get; set; } = string.Empty; // Hashed password
     public ParticipantType Type { get; set; }
+
+    [RegularExpression(@"^\d{4}\d{5}$", ErrorMessage = "학번 형식이 올바르지 않습니다. (예: 202612345)")]
     public string? StudentId { get; set; }
+
+    [RegularExpression(@"^010\d{7,8}$", ErrorMessage = "올바른 연락처 형식이 아닙니다. (010으로 시작하는 10~11자리 숫자)")]
     public string PhoneNumber { get; set; } = string.Empty;
     public int ParticipationCount { get; set; }
     public string? MemoryOrExpectation { get; set; }
