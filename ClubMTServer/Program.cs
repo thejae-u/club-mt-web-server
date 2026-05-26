@@ -32,6 +32,17 @@ try
             options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
             options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
         });
+    
+    builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+    {
+        options.MultipartBodyLengthLimit = 50 * 1024 * 1024; // 50MB
+    });
+
+    builder.WebHost.ConfigureKestrel(serverOptions =>
+    {
+        serverOptions.Limits.MaxRequestBodySize = 50 * 1024 * 1024; // 50MB
+    });
+
     builder.Services.AddOpenApi();
     builder.Services.AddSingleton<ClubMTServer.Services.EncryptionService>();
 
@@ -100,7 +111,9 @@ try
     });
 
     var dataDir = Path.Combine(AppContext.BaseDirectory, "data");
+    var uploadsDir = Path.Combine(dataDir, "uploads");
     Directory.CreateDirectory(dataDir);
+    Directory.CreateDirectory(uploadsDir);
 
     builder.Services.AddDbContext<MemberDbContext>(options =>
         options.UseSqlite($"Data Source={Path.Combine(dataDir, "members.db")}"));
@@ -118,6 +131,8 @@ try
         options.UseSqlite($"Data Source={Path.Combine(dataDir, "cookingbattle.db")}"));
     builder.Services.AddDbContext<VehicleDbContext>(options =>
         options.UseSqlite($"Data Source={Path.Combine(dataDir, "vehicles.db")}"));
+    builder.Services.AddDbContext<PhotoDbContext>(options =>
+        options.UseSqlite($"Data Source={Path.Combine(dataDir, "photos.db")}"));
 
     builder.Services.AddSingleton<ClubMTServer.Services.AuditLogQueue>();
     builder.Services.AddHostedService<ClubMTServer.Services.AuditLogProcessor>();
@@ -265,6 +280,26 @@ try
 
     app.UseDefaultFiles();
     app.UseStaticFiles();
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
+            Path.Combine(AppContext.BaseDirectory, "data", "uploads")),
+        RequestPath = "/uploads",
+        OnPrepareResponse = ctx =>
+        {
+            // Security: Only allow image types to be served from the uploads folder
+            var ext = Path.GetExtension(ctx.File.Name).ToLowerInvariant();
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+            if (!allowedExtensions.Contains(ext))
+            {
+                ctx.Context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                ctx.Context.Response.Body = Stream.Null; // Prevent content from being sent
+            }
+            
+            // Add cache control for optimized loading
+            ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=31536000");
+        }
+    });
 
     if (app.Environment.IsDevelopment())
     {
@@ -284,6 +319,7 @@ try
         var modificationDb = scope.ServiceProvider.GetRequiredService<ModificationDbContext>();
         var cookingDb = scope.ServiceProvider.GetRequiredService<CookingBattleDbContext>();
         var vehicleDb = scope.ServiceProvider.GetRequiredService<VehicleDbContext>();
+        var photoDb = scope.ServiceProvider.GetRequiredService<PhotoDbContext>();
 
         memberDb.Database.EnsureCreated();
         settingsDb.Database.EnsureCreated();
@@ -293,6 +329,7 @@ try
         modificationDb.Database.EnsureCreated();
         cookingDb.Database.EnsureCreated();
         vehicleDb.Database.EnsureCreated();
+        photoDb.Database.EnsureCreated();
 
         // AUTO-MIGRATION: Fill missing NameHash for existing data
         var encryption = scope.ServiceProvider.GetRequiredService<ClubMTServer.Services.EncryptionService>();
