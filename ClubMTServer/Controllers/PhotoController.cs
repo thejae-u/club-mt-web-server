@@ -17,7 +17,7 @@ namespace ClubMTServer.Controllers
         public PhotoController(PhotoDbContext context, IWebHostEnvironment env)
         {
             _context = context;
-            _uploadsFolder = Path.Combine(AppContext.BaseDirectory, "data", "uploads");
+            _uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "data", "uploads");
             if (!Directory.Exists(_uploadsFolder)) Directory.CreateDirectory(_uploadsFolder);
         }
 

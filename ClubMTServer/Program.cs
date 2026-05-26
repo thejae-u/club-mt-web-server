@@ -110,7 +110,7 @@ try
         });
     });
 
-    var dataDir = Path.Combine(AppContext.BaseDirectory, "data");
+    var dataDir = Path.Combine(Directory.GetCurrentDirectory(), "data");
     var uploadsDir = Path.Combine(dataDir, "uploads");
     Directory.CreateDirectory(dataDir);
     Directory.CreateDirectory(uploadsDir);
@@ -283,7 +283,7 @@ try
     app.UseStaticFiles(new StaticFileOptions
     {
         FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
-            Path.Combine(AppContext.BaseDirectory, "data", "uploads")),
+            Path.Combine(Directory.GetCurrentDirectory(), "data", "uploads")),
         RequestPath = "/uploads",
         OnPrepareResponse = ctx =>
         {
