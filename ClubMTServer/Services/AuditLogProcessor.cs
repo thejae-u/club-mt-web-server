@@ -9,13 +9,11 @@ namespace ClubMTServer.Services
     public class AuditLogProcessor : BackgroundService
     {
         private readonly AuditLogQueue _queue;
-        private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<AuditLogProcessor> _logger;
 
-        public AuditLogProcessor(AuditLogQueue queue, IServiceProvider serviceProvider, ILogger<AuditLogProcessor> logger)
+        public AuditLogProcessor(AuditLogQueue queue, ILogger<AuditLogProcessor> logger)
         {
             _queue = queue;
-            _serviceProvider = serviceProvider;
             _logger = logger;
         }
 
@@ -28,13 +26,7 @@ namespace ClubMTServer.Services
                 try
                 {
                     var log = await _queue.DequeueAsync(stoppingToken);
-
-                    using (var scope = _serviceProvider.CreateScope())
-                    {
-                        var dbContext = scope.ServiceProvider.GetRequiredService<AuditLogDbContext>();
-                        dbContext.AuditLogs.Add(log);
-                        await dbContext.SaveChangesAsync(stoppingToken);
-                    }
+                    _logger.LogInformation("AuditLog: {@AuditLog}", log);
                 }
                 catch (OperationCanceledException)
                 {

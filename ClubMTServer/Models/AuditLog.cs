@@ -4,7 +4,6 @@ namespace ClubMTServer.Models
 {
     public class AuditLog
     {
-        public int Id { get; set; }
         public string? Username { get; set; }
         public string? Role { get; set; }
         public string? Method { get; set; }

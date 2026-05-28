@@ -8,11 +8,16 @@ using System.Text;
 using ClubMTServer.Models;
 using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
+using Serilog.Filters;
 
 using System.Text.Json.Serialization;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
+    .WriteTo.File(
+        path: "data/logs/api-.log",
+        rollingInterval: RollingInterval.Day,
+        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
     .CreateBootstrapLogger();
 
 try
@@ -23,7 +28,19 @@ try
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .Enrich.FromLogContext()
-        .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}"));
+        .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+        .WriteTo.Logger(lc => lc
+            .Filter.ByExcluding(Matching.FromSource<ClubMTServer.Services.AuditLogProcessor>())
+            .WriteTo.File(
+                path: "data/logs/api-.log",
+                rollingInterval: RollingInterval.Day,
+                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}"))
+        .WriteTo.Logger(lc => lc
+            .Filter.ByIncludingOnly(Matching.FromSource<ClubMTServer.Services.AuditLogProcessor>())
+            .WriteTo.File(
+                formatter: new Serilog.Formatting.Json.JsonFormatter(),
+                path: "data/logs/audit-.log",
+                rollingInterval: RollingInterval.Day)));
 
     // Add services to the container.
     builder.Services.AddControllers()
@@ -123,8 +140,6 @@ try
         options.UseSqlite($"Data Source={Path.Combine(dataDir, "fees.db")}"));
     builder.Services.AddDbContext<ParticipantDbContext>(options =>
         options.UseSqlite($"Data Source={Path.Combine(dataDir, "participants.db")}"));
-    builder.Services.AddDbContext<AuditLogDbContext>(options =>
-        options.UseSqlite($"Data Source={Path.Combine(dataDir, "auditlogs.db")}"));
     builder.Services.AddDbContext<ModificationDbContext>(options =>
         options.UseSqlite($"Data Source={Path.Combine(dataDir, "modifications.db")}"));
     builder.Services.AddDbContext<CookingBattleDbContext>(options =>
@@ -136,6 +151,7 @@ try
 
     builder.Services.AddSingleton<ClubMTServer.Services.AuditLogQueue>();
     builder.Services.AddHostedService<ClubMTServer.Services.AuditLogProcessor>();
+    builder.Services.AddHostedService<ClubMTServer.Services.LogCleanupService>();
 
     var allowedOrigins = allowedOriginsString.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
@@ -315,7 +331,6 @@ try
         var settingsDb = scope.ServiceProvider.GetRequiredService<SettingsDbContext>();
         var feeDb = scope.ServiceProvider.GetRequiredService<FeeDbContext>();
         var participantDb = scope.ServiceProvider.GetRequiredService<ParticipantDbContext>();
-        var auditDb = scope.ServiceProvider.GetRequiredService<AuditLogDbContext>();
         var modificationDb = scope.ServiceProvider.GetRequiredService<ModificationDbContext>();
         var cookingDb = scope.ServiceProvider.GetRequiredService<CookingBattleDbContext>();
         var vehicleDb = scope.ServiceProvider.GetRequiredService<VehicleDbContext>();
@@ -325,7 +340,6 @@ try
         settingsDb.Database.EnsureCreated();
         feeDb.Database.EnsureCreated();
         participantDb.Database.EnsureCreated();
-        auditDb.Database.EnsureCreated();
         modificationDb.Database.EnsureCreated();
         cookingDb.Database.EnsureCreated();
         vehicleDb.Database.EnsureCreated();
