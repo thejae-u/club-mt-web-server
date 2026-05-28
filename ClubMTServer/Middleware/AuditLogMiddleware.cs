@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using System.IO;
 using System.Security.Claims;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace ClubMTServer.Middleware
@@ -37,6 +38,17 @@ namespace ClubMTServer.Middleware
 
                 // Call next middleware
                 await _next(context);
+
+                // Sanitize sensitive information from the request body
+                if (!string.IsNullOrEmpty(requestBody))
+                {
+                    // Mask common sensitive JSON keys
+                    requestBody = Regex.Replace(
+                        requestBody, 
+                        @"""(password|newPassword|oldPassword|adminKey|key)""\s*:\s*""[^""]*""", 
+                        @"""$1"": ""***MASKED***""", 
+                        RegexOptions.IgnoreCase);
+                }
 
                 // Prepare log entry
                 var log = new AuditLog
