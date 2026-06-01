@@ -49,6 +49,8 @@ public class EncryptionService
             aes.Key = _key;
 
             var iv = new byte[IV_SIZE];
+            if (fullCipher.Length < IV_SIZE) return null; // Invalid cipher format
+
             Array.Copy(fullCipher, 0, iv, 0, IV_SIZE);
             aes.IV = iv;
 
@@ -59,10 +61,12 @@ public class EncryptionService
 
             return sr.ReadToEnd();
         }
-        catch
+        catch (Exception ex)
         {
-            // If decryption fails, it might be unencrypted data or wrong key
-            return cipherText;
+            // Log decryption failure for auditing, but don't return the raw cipher text
+            // to avoid misleading the application into thinking it's valid plain text.
+            Console.WriteLine($"Decryption failed: {ex.Message}");
+            return null;
         }
     }
 

@@ -80,7 +80,7 @@ public class ParticipantsController : ControllerBase
         {
             HttpOnly = true,
             Secure = !isLocalhost,
-            SameSite = isLocalhost ? SameSiteMode.Lax : SameSiteMode.None,
+            SameSite = SameSiteMode.Lax,
             Expires = DateTime.UtcNow.AddDays(7),
             Path = "/"
         });

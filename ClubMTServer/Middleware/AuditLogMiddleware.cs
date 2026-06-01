@@ -4,7 +4,8 @@ using Microsoft.AspNetCore.Http;
 using System.IO;
 using System.Security.Claims;
 using System.Text;
-using System.Text.RegularExpressions;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 
 namespace ClubMTServer.Middleware
@@ -13,6 +14,7 @@ namespace ClubMTServer.Middleware
     {
         private readonly RequestDelegate _next;
         private readonly AuditLogQueue _queue;
+        private static readonly string[] SensitiveKeys = { "password", "newPassword", "oldPassword", "adminKey", "key" };
 
         public AuditLogMiddleware(RequestDelegate next, AuditLogQueue queue)
         {
@@ -39,15 +41,24 @@ namespace ClubMTServer.Middleware
                 // Call next middleware
                 await _next(context);
 
-                // Sanitize sensitive information from the request body
+                // Sanitize sensitive information from the request body using structured JSON parsing
+                var sanitizedBody = requestBody;
                 if (!string.IsNullOrEmpty(requestBody))
                 {
-                    // Mask common sensitive JSON keys
-                    requestBody = Regex.Replace(
-                        requestBody, 
-                        @"""(password|newPassword|oldPassword|adminKey|key)""\s*:\s*""[^""]*""", 
-                        @"""$1"": ""***MASKED***""", 
-                        RegexOptions.IgnoreCase);
+                    try
+                    {
+                        var node = JsonNode.Parse(requestBody);
+                        if (node != null)
+                        {
+                            MaskSensitiveData(node);
+                            sanitizedBody = node.ToJsonString();
+                        }
+                    }
+                    catch
+                    {
+                        // If parsing fails (not JSON or malformed), fall back to keeping the original (or we could choose to mask everything)
+                        // For safety, if it's not JSON, we might want to log that it couldn't be sanitized.
+                    }
                 }
 
                 // Prepare log entry
@@ -57,7 +68,7 @@ namespace ClubMTServer.Middleware
                     Role = context.User.FindFirst(ClaimTypes.Role)?.Value ?? "Unknown",
                     Method = method,
                     Path = context.Request.Path,
-                    RequestBody = requestBody,
+                    RequestBody = sanitizedBody,
                     ResponseStatus = context.Response.StatusCode.ToString(),
                     Timestamp = DateTime.UtcNow,
                     IpAddress = context.Connection.RemoteIpAddress?.ToString()
@@ -69,6 +80,39 @@ namespace ClubMTServer.Middleware
             else
             {
                 await _next(context);
+            }
+        }
+
+        private void MaskSensitiveData(JsonNode node)
+        {
+            if (node is JsonObject obj)
+            {
+                foreach (var key in SensitiveKeys)
+                {
+                    if (obj.ContainsKey(key))
+                    {
+                        obj[key] = JsonValue.Create("***MASKED***");
+                    }
+                }
+
+                // Recursively check for nested objects or arrays
+                foreach (var property in obj)
+                {
+                    if (property.Value != null)
+                    {
+                        MaskSensitiveData(property.Value);
+                    }
+                }
+            }
+            else if (node is JsonArray array)
+            {
+                foreach (var item in array)
+                {
+                    if (item != null)
+                    {
+                        MaskSensitiveData(item);
+                    }
+                }
             }
         }
     }

@@ -7,6 +7,8 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using ClubMTServer.Models;
 using Microsoft.AspNetCore.HttpOverrides;
+using System.Threading.RateLimiting;
+using Microsoft.Extensions.Caching.Memory;
 using Serilog;
 using Serilog.Filters;
 
@@ -103,28 +105,49 @@ try
 
     builder.Services.AddAuthorization();
 
-    // Rate Limiting Configuration
+    builder.Services.AddMemoryCache(); // Add Memory Cache
+
+    // Rate Limiting Configuration: Hybrid strategy to support NAT (Wi-Fi sharing) environments
     builder.Services.AddRateLimiter(options =>
     {
         options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-        options.AddFixedWindowLimiter(policyName: "login", loginOptions =>
-        {
-            loginOptions.PermitLimit = 5;
-            loginOptions.Window = TimeSpan.FromMinutes(1);
-            loginOptions.QueueLimit = 0;
-        });
-        options.AddFixedWindowLimiter(policyName: "submit", submitOptions =>
-        {
-            submitOptions.PermitLimit = 3;
-            submitOptions.Window = TimeSpan.FromMinutes(1);
-            submitOptions.QueueLimit = 0;
-        });
-        options.AddFixedWindowLimiter(policyName: "cheer", cheerOptions =>
-        {
-            cheerOptions.PermitLimit = 1000;
-            cheerOptions.Window = TimeSpan.FromSeconds(10);
-            cheerOptions.QueueLimit = 0;
-        });
+
+        // Login: IP-based but with a higher limit (100) to allow a group of users from the same Wi-Fi
+        options.AddPolicy("login", httpContext =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous-login",
+                factory: _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 100, 
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0
+                }));
+
+        // Submit: User-based if authenticated, otherwise IP-based
+        options.AddPolicy("submit", httpContext =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+                              ?? httpContext.Connection.RemoteIpAddress?.ToString() 
+                              ?? "anonymous-submit",
+                factory: _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 10,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0
+                }));
+
+        // Cheer: User-based if authenticated, otherwise IP-based
+        options.AddPolicy("cheer", httpContext =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+                              ?? httpContext.Connection.RemoteIpAddress?.ToString() 
+                              ?? "anonymous-cheer",
+                factory: _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 1000,
+                    Window = TimeSpan.FromSeconds(10),
+                    QueueLimit = 0
+                }));
     });
 
     var dataDir = Path.Combine(Directory.GetCurrentDirectory(), "data");
@@ -169,10 +192,13 @@ try
     var app = builder.Build();
 
     // Enable Forwarded Headers for Nginx Proxy
-    app.UseForwardedHeaders(new ForwardedHeadersOptions
+    var forwardedOptions = new ForwardedHeadersOptions
     {
         ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-    });
+    };
+    forwardedOptions.KnownIPNetworks.Clear(); // Trust all networks as we are behind a proxy in Docker
+    forwardedOptions.KnownProxies.Clear();  // Trust all proxies as we are behind a proxy in Docker
+    app.UseForwardedHeaders(forwardedOptions);
 
     app.UseCors("AllowedDomains");
     app.UseSerilogRequestLogging();
@@ -181,7 +207,7 @@ try
     app.UseAuthentication();
     app.UseAuthorization();
 
-    // Session Validation Middleware: Enforce single-session management
+    // Session Validation Middleware: Enforce single-session management with In-Memory Caching
     app.Use(async (context, next) =>
     {
         // Only validate if a JWT cookie exists. If it doesn't, let standard authorization handle it.
@@ -191,24 +217,47 @@ try
             var roleClaim = context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
             bool isValid = false;
 
-            if (!string.IsNullOrEmpty(sidClaim))
+            if (!string.IsNullOrEmpty(sidClaim) && !string.IsNullOrEmpty(context.User.Identity.Name))
             {
-                using var scope = context.RequestServices.CreateScope();
-                if (roleClaim == "admin")
+                var cache = context.RequestServices.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
+                var cacheKey = $"session_{roleClaim}_{context.User.Identity.Name}";
+
+                // 1. Try to get valid session ID from cache
+                if (cache.TryGetValue(cacheKey, out string? cachedSid))
                 {
-                    var db = scope.ServiceProvider.GetRequiredService<MemberDbContext>();
-                    var username = context.User.Identity.Name;
-                    var user = await db.AdminUsers.FirstOrDefaultAsync(u => u.Username == username);
-                    if (user != null && user.CurrentSessionId == sidClaim) isValid = true;
+                    if (cachedSid == sidClaim) isValid = true;
                 }
-                else if (roleClaim == "Participant")
+                else
                 {
-                    var db = scope.ServiceProvider.GetRequiredService<ParticipantDbContext>();
-                    var idClaim = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                    if (int.TryParse(idClaim, out int id))
+                    // 2. Cache miss: Query Database
+                    using var scope = context.RequestServices.CreateScope();
+                    string? dbSid = null;
+
+                    if (roleClaim == "admin")
                     {
-                        var p = await db.Participants.FindAsync(id);
-                        if (p != null && p.CurrentSessionId == sidClaim) isValid = true;
+                        var db = scope.ServiceProvider.GetRequiredService<MemberDbContext>();
+                        var username = context.User.Identity.Name;
+                        var user = await db.AdminUsers.FirstOrDefaultAsync(u => u.Username == username);
+                        dbSid = user?.CurrentSessionId;
+                    }
+                    else if (roleClaim == "Participant")
+                    {
+                        var db = scope.ServiceProvider.GetRequiredService<ParticipantDbContext>();
+                        var idClaim = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                        if (int.TryParse(idClaim, out int id))
+                        {
+                            var p = await db.Participants.FindAsync(id);
+                            dbSid = p?.CurrentSessionId;
+                        }
+                    }
+
+                    // 3. Validate and update cache
+                    if (dbSid != null)
+                    {
+                        if (dbSid == sidClaim) isValid = true;
+                        
+                        // Cache the DB result for 2 minutes to reduce load
+                        cache.Set(cacheKey, dbSid, TimeSpan.FromMinutes(2));
                     }
                 }
             }
@@ -222,7 +271,7 @@ try
                     Path = "/",
                     HttpOnly = true,
                     Secure = !isLocalhost,
-                    SameSite = isLocalhost ? SameSiteMode.Lax : SameSiteMode.None
+                    SameSite = SameSiteMode.Lax
                 });
 
                 // Return 401 immediately for stale sessions to force logout/re-login

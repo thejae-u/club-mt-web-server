@@ -49,7 +49,7 @@ public class AuthController : ControllerBase
         {
             HttpOnly = true,
             Secure = !isLocalhost, // Disable secure flag for local HTTP testing
-            SameSite = isLocalhost ? SameSiteMode.Lax : SameSiteMode.None, // Adjust same-site for local vs cross-domain
+            SameSite = SameSiteMode.Lax, // Use Lax for better CSRF protection (compatible with subdomains)
             Expires = DateTime.UtcNow.AddHours(1),
             Path = "/"
         });
@@ -77,7 +77,7 @@ public class AuthController : ControllerBase
             Path = "/",
             HttpOnly = true,
             Secure = !isLocalhost,
-            SameSite = isLocalhost ? SameSiteMode.Lax : SameSiteMode.None
+            SameSite = SameSiteMode.Lax
         });
         return Ok(new { message = "Logged out successfully" });
     }
