@@ -13,6 +13,7 @@ using Serilog;
 using Serilog.Filters;
 
 using System.Text.Json.Serialization;
+using System.Text.Encodings.Web;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -50,6 +51,7 @@ try
         {
             options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
             options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+            options.JsonSerializerOptions.Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
         });
     
     builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
@@ -429,6 +431,9 @@ try
         try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsCookingBattleVotingActive INTEGER NOT NULL DEFAULT 0;"); } catch { /* Already exists */ }
         try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsVehicleAssignmentPublic INTEGER NOT NULL DEFAULT 0;"); } catch { /* Already exists */ }
         try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN MaxCheerPerPerson INTEGER NOT NULL DEFAULT 10;"); } catch { /* Already exists */ }
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsServiceOpen INTEGER NOT NULL DEFAULT 0;"); } catch { /* Already exists */ }
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsRegistrationActive INTEGER NOT NULL DEFAULT 0;"); } catch { /* Already exists */ }
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN OpeningDate TEXT NOT NULL DEFAULT '2026-06-18 00:00:00';"); } catch { /* Already exists */ }
         try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN ManittoMissionsJson TEXT NULL;"); } catch { /* Already exists */ }
 
         // MANUAL MIGRATION: ModificationComments Table

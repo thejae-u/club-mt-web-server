@@ -3,6 +3,8 @@ using ClubMTServer.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
+using System.Text.Encodings.Web;
 
 namespace ClubMTServer.Services
 {
@@ -10,6 +12,11 @@ namespace ClubMTServer.Services
     {
         private readonly AuditLogQueue _queue;
         private readonly ILogger<AuditLogProcessor> _logger;
+        private static readonly JsonSerializerOptions _logJsonOptions = new JsonSerializerOptions
+        {
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            WriteIndented = false
+        };
 
         public AuditLogProcessor(AuditLogQueue queue, ILogger<AuditLogProcessor> logger)
         {
@@ -26,7 +33,9 @@ namespace ClubMTServer.Services
                 try
                 {
                     var log = await _queue.DequeueAsync(stoppingToken);
-                    _logger.LogInformation("AuditLog: {@AuditLog}", log);
+                    // Use manual serialization to prevent Unicode escaping in logs
+                    var logJson = JsonSerializer.Serialize(log, _logJsonOptions);
+                    _logger.LogInformation("AuditLog: {AuditLog}", logJson);
                 }
                 catch (OperationCanceledException)
                 {

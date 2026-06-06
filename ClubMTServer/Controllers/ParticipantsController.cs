@@ -296,6 +296,17 @@ public class ParticipantsController : ControllerBase
     [EnableRateLimiting("submit")]
     public async Task<ActionResult<object>> PostParticipant(ParticipantRegistrationDto reg, [FromServices] SettingsDbContext settingsContext)
     {
+        var settings = await settingsContext.Settings.FirstOrDefaultAsync();
+        if (settings == null) return StatusCode(500, "서버 설정 오류입니다.");
+
+        // 신청 활성화(IsRegistrationActive) 확인
+        // - 관리자가 강제로 켰거나 (IsRegistrationActive == true)
+        // - 현재 시간이 오픈 설정 시간(OpeningDate)을 지났을 때만 허용
+        if (!settings.IsRegistrationActive && DateTime.Now < settings.OpeningDate)
+        {
+            return BadRequest("현재 MT 참가 신청 기간이 아닙니다. 정식 오픈 후에 신청해 주세요.");
+        }
+
         var normalizedName = reg.Name.Trim();
         var nameHash = _encryption.ComputeHash(normalizedName);
 
@@ -332,7 +343,7 @@ public class ParticipantsController : ControllerBase
         var finalPassword = reg.Password;
 
         // 4. Waitlist Logic
-        var settings = await settingsContext.Settings.FirstOrDefaultAsync() ?? new SiteSettings();
+        // settings is already loaded at the top of the method
         bool shouldWaitlist = false;
         
         var allRegistered = await _context.Participants.Where(p => p.IsRegistered && !p.IsWaitlisted && !p.IsCancelRequested).ToListAsync();

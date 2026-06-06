@@ -49,5 +49,12 @@ public class SiteSettings
 
     public int MaxCheerPerPerson { get; set; } = 10;
 
+    // Service Opening Settings
+    public DateTime OpeningDate { get; set; } = new DateTime(2026, 6, 18);
+
+    public bool IsServiceOpen { get; set; } = false;
+
+    public bool IsRegistrationActive { get; set; } = false;
+
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

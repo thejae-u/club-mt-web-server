@@ -26,12 +26,27 @@ public class SettingsController : ControllerBase
         {
             settings = new SiteSettings 
             { 
-                ScheduleDataJson = "[]" // Default empty schedule
+                ScheduleDataJson = "[]"
             };
             _context.Settings.Add(settings);
             await _context.SaveChangesAsync();
         }
+
+        // Ensure OpeningDate is treated as UTC for correct JSON serialization
+        settings.OpeningDate = DateTime.SpecifyKind(settings.OpeningDate, DateTimeKind.Utc);
+        
         return settings;
+    }
+
+    [HttpGet("open-status")]
+    public async Task<ActionResult<object>> GetOpenStatus()
+    {
+        var settings = await _context.Settings.FirstOrDefaultAsync();
+        if (settings == null)
+        {
+            return new { isServiceOpen = false, openingDate = new DateTime(2026, 6, 18) };
+        }
+        return new { isServiceOpen = settings.IsServiceOpen, openingDate = settings.OpeningDate };
     }
 
     [HttpPut]
@@ -81,6 +96,9 @@ public class SettingsController : ControllerBase
             existing.IsCookingBattleVotingActive = settings.IsCookingBattleVotingActive;
             existing.IsVehicleAssignmentPublic = settings.IsVehicleAssignmentPublic;
             existing.MaxCheerPerPerson = settings.MaxCheerPerPerson;
+            existing.OpeningDate = settings.OpeningDate;
+            existing.IsServiceOpen = settings.IsServiceOpen;
+            existing.IsRegistrationActive = settings.IsRegistrationActive;
             existing.UpdatedAt = DateTime.UtcNow;
         }
 

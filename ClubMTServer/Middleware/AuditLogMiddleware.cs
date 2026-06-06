@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Encodings.Web;
 using System.Threading.Tasks;
 
 namespace ClubMTServer.Middleware
@@ -15,6 +16,11 @@ namespace ClubMTServer.Middleware
         private readonly RequestDelegate _next;
         private readonly AuditLogQueue _queue;
         private static readonly string[] SensitiveKeys = { "password", "newPassword", "oldPassword", "adminKey", "key" };
+        private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
+        {
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            WriteIndented = false
+        };
 
         public AuditLogMiddleware(RequestDelegate next, AuditLogQueue queue)
         {
@@ -51,7 +57,7 @@ namespace ClubMTServer.Middleware
                         if (node != null)
                         {
                             MaskSensitiveData(node);
-                            sanitizedBody = node.ToJsonString();
+                            sanitizedBody = node.ToJsonString(_jsonOptions);
                         }
                     }
                     catch
