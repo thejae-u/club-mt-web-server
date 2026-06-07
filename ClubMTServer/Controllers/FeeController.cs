@@ -20,12 +20,14 @@ public class FeeController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize]
     public async Task<ActionResult<IEnumerable<FeeHistory>>> GetFees()
     {
         return await _context.FeeHistories.OrderByDescending(f => f.Date).ThenByDescending(f => f.Id).ToListAsync();
     }
 
     [HttpGet("summary")]
+    [Authorize]
     public async Task<ActionResult<object>> GetSummary()
     {
         var fees = await _context.FeeHistories.ToListAsync();
