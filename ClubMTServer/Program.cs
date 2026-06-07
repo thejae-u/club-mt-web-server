@@ -175,8 +175,10 @@ try
         options.UseSqlite($"Data Source={Path.Combine(dataDir, "photos.db")}"));
 
     builder.Services.AddSingleton<ClubMTServer.Services.AuditLogQueue>();
+    builder.Services.AddSingleton<ClubMTServer.Services.CheerCacheService>();
     builder.Services.AddHostedService<ClubMTServer.Services.AuditLogProcessor>();
     builder.Services.AddHostedService<ClubMTServer.Services.LogCleanupService>();
+    builder.Services.AddHostedService<ClubMTServer.Services.CheerFlushWorker>();
 
     var allowedOrigins = allowedOriginsString.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
@@ -185,6 +187,7 @@ try
         options.AddPolicy("AllowedDomains", policy =>
         {
             policy.WithOrigins(allowedOrigins)
+                .WithHeaders("X-ClubMT-Source")
                 .AllowAnyHeader()
                 .AllowAnyMethod()
                 .AllowCredentials();
@@ -203,6 +206,49 @@ try
     app.UseForwardedHeaders(forwardedOptions);
 
     app.UseCors("AllowedDomains");
+
+    // [Security] Custom Header Validation Middleware
+    app.Use(async (context, next) =>
+    {
+        var path = context.Request.Path.Value ?? "";
+
+        // 1. Only apply to API requests
+        if (!path.StartsWith("/api", StringComparison.OrdinalIgnoreCase))
+        {
+            await next(context);
+            return;
+        }
+
+        // 2. Allow OPTIONS for CORS preflight
+        if (context.Request.Method == "OPTIONS")
+        {
+            await next(context);
+            return;
+        }
+
+        // 3. Allow specific API endpoints without custom header (Login, Registration, Status check, etc.)
+        bool isExempted = path.Contains("/api/Auth", StringComparison.OrdinalIgnoreCase) || 
+                          path.Contains("/api/Participants", StringComparison.OrdinalIgnoreCase) || 
+                          path.Contains("/api/Settings/open-status", StringComparison.OrdinalIgnoreCase);
+
+        if (isExempted)
+        {
+            await next(context);
+            return;
+        }
+
+        // 4. Validate custom header for all other /api requests
+        if (!context.Request.Headers.TryGetValue("X-ClubMT-Source", out var source) || source != "WebApp")
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            context.Response.ContentType = "text/plain; charset=utf-8";
+            await context.Response.WriteAsync("[Backend] Forbidden: Invalid Client Source.");
+            return;
+        }
+
+        await next(context);
+    });
+
     app.UseSerilogRequestLogging();
     app.UseMiddleware<ClubMTServer.Middleware.AuditLogMiddleware>();
     app.UseRateLimiter();

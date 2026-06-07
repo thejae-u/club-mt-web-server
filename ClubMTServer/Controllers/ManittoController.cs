@@ -56,7 +56,7 @@ public class ManittoController : ControllerBase
 
             if (lastReport != null && lastReport.CreatedAt > throttleThreshold)
             {
-                return BadRequest("제보는 5초 간격으로 가능합니다. 잠시 후 다시 시도해주세요.");
+                return BadRequest("제보는 5초 간격으로 가능합니다.\n잠시 후 다시 시도해주세요.");
             }
 
             // 2. ClientRequestId 중복 체크
@@ -71,7 +71,7 @@ public class ManittoController : ControllerBase
             var isDuplicate = await _context.ManittoReports
                 .AnyAsync(r => r.ParticipantId == id && r.Content == request.Content && r.CreatedAt > recentThreshold);
 
-            if (isDuplicate) return Ok(new { message = "이미 동일한 제보가 접수되었습니다. 잠시 후 다시 시도해주세요." });
+            if (isDuplicate) return Ok(new { message = "이미 동일한 제보가 접수되었습니다.\n잠시 후 다시 시도해주세요." });
 
             var p = await _context.Participants.FindAsync(id);
             if (p == null) return Unauthorized();
@@ -129,7 +129,7 @@ public class ManittoController : ControllerBase
         var settings = await _settingsContext.Settings.FirstOrDefaultAsync();
         if (settings == null || !settings.IsManittoPublic)
         {
-            return Ok(new { message = "마니또 정보가 아직 공개되지 않았습니다. 공개 시 알림을 확인해주세요!" });
+            return Ok(new { message = "마니또 정보가 아직 공개되지 않았습니다.\n공개 시 알림을 확인해주세요!" });
         }
 
         var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

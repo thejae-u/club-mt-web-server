@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ClubMTServer.Data;
 using ClubMTServer.Models;
+using ClubMTServer.Services;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.RateLimiting;
@@ -15,15 +16,18 @@ public class CookingBattleController : ControllerBase
     private readonly CookingBattleDbContext _context;
     private readonly ParticipantDbContext _participantContext;
     private readonly SettingsDbContext _settingsContext;
+    private readonly CheerCacheService _cheerCache;
 
     public CookingBattleController(
         CookingBattleDbContext context, 
         ParticipantDbContext participantContext,
-        SettingsDbContext settingsContext)
+        SettingsDbContext settingsContext,
+        CheerCacheService cheerCache)
     {
         _context = context;
         _participantContext = participantContext;
         _settingsContext = settingsContext;
+        _cheerCache = cheerCache;
     }
 
     [HttpGet("status")]
@@ -86,8 +90,10 @@ public class CookingBattleController : ControllerBase
             }
         }
 
-        var blackCheers = await _context.Cheers.CountAsync(c => c.Team == CookingTeam.Black);
-        var whiteCheers = await _context.Cheers.CountAsync(c => c.Team == CookingTeam.White);
+        // Use cached cheer stats instead of DB count
+        var stats = _cheerCache.GetGlobalStats();
+        var blackCheers = stats.Black;
+        var whiteCheers = stats.White;
         var totalCheers = blackCheers + whiteCheers;
 
         var totalParticipantsCount = await _participantContext.Participants.CountAsync(p => p.IsRegistered);
@@ -173,12 +179,33 @@ public class CookingBattleController : ControllerBase
         if (!Enum.TryParse<CookingTeam>(team, true, out var cookingTeam) || cookingTeam == CookingTeam.None)
             return BadRequest("잘못된 팀 선택입니다.");
 
-        return await _context.Comments
+        var comments = await _context.Comments
             .Where(c => c.Team == cookingTeam)
             .OrderByDescending(c => c.CreatedAt)
             .Take(50)
-            .Select(c => new { c.Content, c.CreatedAt, c.Team })
             .ToListAsync();
+
+        var participantIds = comments.Select(c => c.ParticipantId).Distinct().ToList();
+        var participants = await _participantContext.Participants
+            .Where(p => participantIds.Contains(p.Id))
+            .Select(p => new { p.Id, p.Name })
+            .ToListAsync();
+
+        return comments.Select(c => {
+            var p = participants.FirstOrDefault(pp => pp.Id == c.ParticipantId);
+            var decryptedName = p?.Name ?? "Unknown";
+            string maskedName;
+            if (decryptedName.Length <= 1) maskedName = decryptedName;
+            else if (decryptedName.Length == 2) maskedName = decryptedName[..1] + "*";
+            else maskedName = decryptedName[..1] + new string('*', decryptedName.Length - 2) + decryptedName[^1..];
+
+            return new { 
+                c.Content, 
+                c.CreatedAt, 
+                c.Team,
+                Author = maskedName
+            };
+        }).ToList();
     }
 
     [HttpPost("comments/{team}")]
@@ -237,17 +264,15 @@ public class CookingBattleController : ControllerBase
         var settings = await _settingsContext.Settings.FirstOrDefaultAsync();
         var maxCheer = settings?.MaxCheerPerPerson ?? 10;
 
-        var myCheerCount = await _context.Cheers.CountAsync(c => c.ParticipantId == participantId);
-        if (myCheerCount >= maxCheer) return BadRequest($"인당 최대 {maxCheer}번까지만 응원할 수 있습니다.");
+        // Use caching service for counting and adding cheers
+        // This avoids immediate DB write and locking issues
+        var currentCount = await _cheerCache.GetUserCheerCountAsync(participantId);
+        if (currentCount >= maxCheer) return BadRequest($"인당 최대 {maxCheer}번까지만 응원할 수 있습니다.");
 
-        var cheer = new CookingBattleCheer
+        if (!_cheerCache.TryAddCheer(participantId, cookingTeam, maxCheer))
         {
-            ParticipantId = participantId,
-            Team = cookingTeam
-        };
-
-        _context.Cheers.Add(cheer);
-        await _context.SaveChangesAsync();
+            return BadRequest($"인당 최대 {maxCheer}번까지만 응원할 수 있습니다.");
+        }
 
         return Ok(new { message = "응원 감사합니다!" });
     }

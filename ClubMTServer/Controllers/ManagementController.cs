@@ -138,11 +138,16 @@ public class ManagementController : ControllerBase
             Total = registeredOnly.Count
         };
 
-        var cohortCounts = new Dictionary<int, int>();
-        for (int i = 1; i <= 7; i++)
-        {
-            cohortCounts[i] = confirmed.Count(p => p.Generation == i);
-        }
+        // Ensure all generations from master list are included, even with 0 counts
+        var allGenerationsFromMembers = await _memberContext.Members.Select(m => m.Generation).Distinct().ToListAsync();
+        var allGenerationsFromParticipants = confirmed.Select(p => p.Generation).Distinct().ToList();
+        var allGenerations = allGenerationsFromMembers.Union(allGenerationsFromParticipants).OrderBy(g => g).ToList();
+        
+        // If no data at all, default to 1-7 for a clean UI
+        if (!allGenerations.Any()) allGenerations = Enumerable.Range(1, 7).ToList();
+
+        var generationCounts = allGenerations
+            .ToDictionary(gen => gen, gen => confirmed.Count(p => p.Generation == gen && p.Type != ParticipantType.Military));
 
         var cookingBattle = new
         {
@@ -173,7 +178,7 @@ public class ManagementController : ControllerBase
             })
             .ToList();
 
-        return new { counts, expectations, cohortCounts, cookingBattle };
+        return new { counts, expectations, generationCounts, cookingBattle };
     }
 
     [HttpPost("manitto/missions")]

@@ -15,7 +15,10 @@ namespace ClubMTServer.Middleware
     {
         private readonly RequestDelegate _next;
         private readonly AuditLogQueue _queue;
-        private static readonly string[] SensitiveKeys = { "password", "newPassword", "oldPassword", "adminKey", "key" };
+        private static readonly string[] SensitiveKeys = { 
+            "password", "newPassword", "oldPassword", "adminKey", "key",
+            "name", "studentId", "phoneNumber", "studentID", "phone" 
+        };
         private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
         {
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,

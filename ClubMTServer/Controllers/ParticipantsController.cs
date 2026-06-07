@@ -80,7 +80,7 @@ public class ParticipantsController : ControllerBase
         {
             HttpOnly = true,
             Secure = !isLocalhost,
-            SameSite = SameSiteMode.Lax,
+            SameSite = isLocalhost ? SameSiteMode.Lax : SameSiteMode.None,
             Expires = DateTime.UtcNow.AddDays(7),
             Path = "/"
         });
@@ -162,6 +162,7 @@ public class ParticipantsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize]
     public async Task<ActionResult<IEnumerable<object>>> GetParticipants()
     {
         // Use more robust check for admin role
@@ -188,14 +189,24 @@ public class ParticipantsController : ControllerBase
                     p.IsMilitaryPriority, p.MilitaryStatus,
                     p.IsRegistered, p.IsDepositConfirmed, p.IsWaitlisted, p.IsCancelRequested,
                     p.CreatedAt
-                }).ToList();
+                }).ToList<object>();
         }
 
         return rawList.Select(p => {
                 var decryptedName = p.Name ?? ""; // Already decrypted by EF Core
-                var maskedName = decryptedName.Length > 1 
-                    ? decryptedName[..1] + new string('*', decryptedName.Length - 2) + decryptedName[^1..]
-                    : decryptedName;
+                string maskedName;
+                if (decryptedName.Length <= 1)
+                {
+                    maskedName = decryptedName;
+                }
+                else if (decryptedName.Length == 2)
+                {
+                    maskedName = decryptedName[..1] + "*";
+                }
+                else
+                {
+                    maskedName = decryptedName[..1] + new string('*', decryptedName.Length - 2) + decryptedName[^1..];
+                }
 
                 return (object)new {
                     p.Id, p.Type, 

@@ -48,9 +48,9 @@ public class AuthController : ControllerBase
         Response.Cookies.Append("jwt", token, new CookieOptions
         {
             HttpOnly = true,
-            Secure = !isLocalhost, // Disable secure flag for local HTTP testing
-            SameSite = SameSiteMode.Lax, // Use Lax for better CSRF protection (compatible with subdomains)
-            Expires = DateTime.UtcNow.AddHours(1),
+            Secure = !isLocalhost,
+            SameSite = isLocalhost ? SameSiteMode.Lax : SameSiteMode.None,
+            Expires = DateTime.UtcNow.AddDays(7),
             Path = "/"
         });
 
