@@ -43,15 +43,25 @@ public class SettingsController : ControllerBase
     public async Task<ActionResult<object>> GetOpenStatus()
     {
         var settings = await _context.Settings.FirstOrDefaultAsync();
+        var serverTime = DateTime.UtcNow;
+
         if (settings == null)
         {
-            return new { isServiceOpen = false, openingDate = new DateTime(2026, 6, 18, 0, 0, 0, DateTimeKind.Utc) };
+            return new { 
+                isServiceOpen = false, 
+                openingDate = new DateTime(2026, 6, 18, 0, 0, 0, DateTimeKind.Utc),
+                serverTime = serverTime
+            };
         }
-        
+
         // Ensure OpeningDate is treated as UTC for correct JSON serialization
         var openingDate = DateTime.SpecifyKind(settings.OpeningDate, DateTimeKind.Utc);
-        
-        return new { isServiceOpen = settings.IsServiceOpen, openingDate = openingDate };
+
+        return new { 
+            isServiceOpen = settings.IsServiceOpen, 
+            openingDate = openingDate,
+            serverTime = serverTime
+        };
     }
 
     [HttpPut]
