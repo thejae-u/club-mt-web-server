@@ -500,47 +500,47 @@ try
         photoDb.Database.EnsureCreated();
         volleyballDb.Database.EnsureCreated();
 
-        // AUTO-MIGRATION: Fill missing NameHash for existing data
-        var encryption = scope.ServiceProvider.GetRequiredService<ClubMTServer.Services.EncryptionService>();
+        // --- 1. RAW SQL MANUAL MIGRATIONS (Must run before any EF queries) ---
+        
+        // Participant DB
+        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE ManittoReports ADD COLUMN ClientRequestId TEXT NULL;"); } catch { }
+        try { participantDb.Database.ExecuteSqlRaw("CREATE UNIQUE INDEX IF NOT EXISTS IX_ManittoReports_ClientRequestId ON ManittoReports (ClientRequestId);"); } catch { }
+        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN CurrentSessionId TEXT NULL;"); } catch { }
+        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN ManittoMissionsJson TEXT NULL;"); } catch { }
+        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN IsCancelRequested INTEGER NOT NULL DEFAULT 0;"); } catch { }
+        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN SortOrder REAL NOT NULL DEFAULT 0.0;"); } catch { }
+        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN ChecklistJson TEXT NULL;"); } catch { }
+        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN CommonChecklistStatusJson TEXT NULL;"); } catch { }
+        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN MbtiResult TEXT NULL;"); } catch { }
+        try 
+        { 
+            participantDb.Database.ExecuteSqlRaw(@"
+                CREATE TABLE IF NOT EXISTS ManittoAssignments (
+                    ParticipantId INTEGER PRIMARY KEY,
+                    TargetId INTEGER NULL,
+                    MissionId INTEGER NULL,
+                    IsMissionComplete INTEGER NOT NULL DEFAULT 0,
+                    MissionsJson TEXT NULL,
+                    CONSTRAINT FK_ManittoAssignments_Participants_ParticipantId FOREIGN KEY (ParticipantId) REFERENCES Participants (Id) ON DELETE CASCADE
+                );");
+        } catch { }
 
-        var membersToFix = memberDb.Members.Where(m => string.IsNullOrEmpty(m.NameHash)).ToList();
-        foreach (var m in membersToFix)
-        {
-            m.NameHash = encryption.ComputeHash(m.Name);
-        }
+        // Member DB
+        try { memberDb.Database.ExecuteSqlRaw("ALTER TABLE AdminUsers ADD COLUMN CurrentSessionId TEXT NULL;"); } catch { }
 
-        if (membersToFix.Any()) memberDb.SaveChanges();
+        // Settings DB
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsManittoPublic INTEGER NOT NULL DEFAULT 0;"); } catch { }
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN ManittoMissionCount INTEGER NOT NULL DEFAULT 3;"); } catch { }
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsCookingBattlePublic INTEGER NOT NULL DEFAULT 0;"); } catch { }
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsCookingBattleChefPublic INTEGER NOT NULL DEFAULT 0;"); } catch { }
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsCookingBattleVotingActive INTEGER NOT NULL DEFAULT 0;"); } catch { }
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsVehicleAssignmentPublic INTEGER NOT NULL DEFAULT 0;"); } catch { }
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN MaxCheerPerPerson INTEGER NOT NULL DEFAULT 10;"); } catch { }
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsServiceOpen INTEGER NOT NULL DEFAULT 0;"); } catch { }
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsRegistrationActive INTEGER NOT NULL DEFAULT 0;"); } catch { }
+        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN OpeningDate TEXT NOT NULL DEFAULT '2026-06-18 00:00:00';"); } catch { }
 
-        var participantsToFix = participantDb.Participants.Where(p => string.IsNullOrEmpty(p.NameHash)).ToList();
-        foreach (var p in participantsToFix)
-        {
-            p.NameHash = encryption.ComputeHash(p.Name);
-        }
-
-        if (participantsToFix.Any()) participantDb.SaveChanges();
-
-        // MANUAL MIGRATION: ManittoReports ClientRequestId
-        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE ManittoReports ADD COLUMN ClientRequestId TEXT NULL;"); } catch { /* Already exists */ }
-        try { participantDb.Database.ExecuteSqlRaw("CREATE UNIQUE INDEX IF NOT EXISTS IX_ManittoReports_ClientRequestId ON ManittoReports (ClientRequestId);"); } catch { /* Already exists */ }
-
-        // MANUAL MIGRATION: Single-Session Management (CurrentSessionId)
-        try { memberDb.Database.ExecuteSqlRaw("ALTER TABLE AdminUsers ADD COLUMN CurrentSessionId TEXT NULL;"); } catch { /* Already exists */ }
-        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN CurrentSessionId TEXT NULL;"); } catch { /* Already exists */ }
-
-        // MANUAL MIGRATION: Multiple Missions and Visibility
-        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsManittoPublic INTEGER NOT NULL DEFAULT 0;"); } catch { /* Already exists */ }
-        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN ManittoMissionCount INTEGER NOT NULL DEFAULT 3;"); } catch { /* Already exists */ }
-        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsCookingBattlePublic INTEGER NOT NULL DEFAULT 0;"); } catch { /* Already exists */ }
-        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsCookingBattleChefPublic INTEGER NOT NULL DEFAULT 0;"); } catch { /* Already exists */ }
-        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsCookingBattleVotingActive INTEGER NOT NULL DEFAULT 0;"); } catch { /* Already exists */ }
-        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsVehicleAssignmentPublic INTEGER NOT NULL DEFAULT 0;"); } catch { /* Already exists */ }
-        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN MaxCheerPerPerson INTEGER NOT NULL DEFAULT 10;"); } catch { /* Already exists */ }
-        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsServiceOpen INTEGER NOT NULL DEFAULT 0;"); } catch { /* Already exists */ }
-        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsRegistrationActive INTEGER NOT NULL DEFAULT 0;"); } catch { /* Already exists */ }
-        try { settingsDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN OpeningDate TEXT NOT NULL DEFAULT '2026-06-18 00:00:00';"); } catch { /* Already exists */ }
-        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN ManittoMissionsJson TEXT NULL;"); } catch { /* Already exists */ }
-
-        // MANUAL MIGRATION: ModificationComments Table
+        // Modification DB
         try 
         { 
             modificationDb.Database.ExecuteSqlRaw(@"
@@ -555,49 +555,40 @@ try
             modificationDb.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_ModificationComments_TaskId ON ModificationComments (TaskId);");
         } catch { }
 
-        // MANUAL MIGRATION: ManittoAssignments Table
-        try 
-        { 
-            participantDb.Database.ExecuteSqlRaw(@"
-                CREATE TABLE IF NOT EXISTS ManittoAssignments (
-                    ParticipantId INTEGER PRIMARY KEY,
-                    TargetId INTEGER NULL,
-                    MissionId INTEGER NULL,
-                    IsMissionComplete INTEGER NOT NULL DEFAULT 0,
-                    MissionsJson TEXT NULL,
-                    CONSTRAINT FK_ManittoAssignments_Participants_ParticipantId FOREIGN KEY (ParticipantId) REFERENCES Participants (Id) ON DELETE CASCADE
-                );");
-        } catch { }
-
-        // MANUAL MIGRATION: Participants IsCancelRequested and SortOrder Columns
-        try 
-        { 
-            participantDb.Database.ExecuteSqlRaw(@"ALTER TABLE Participants ADD COLUMN IsCancelRequested INTEGER NOT NULL DEFAULT 0;");
-        } catch { }
-        try 
-        { 
-            participantDb.Database.ExecuteSqlRaw(@"ALTER TABLE Participants ADD COLUMN SortOrder REAL NOT NULL DEFAULT 0.0;");
-        } catch { }
-        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN ChecklistJson TEXT NULL;"); } catch { }
-        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN CommonChecklistStatusJson TEXT NULL;"); } catch { }
-        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN MbtiResult TEXT NULL;"); } catch { }
-
-        // MANUAL MIGRATION: Volleyball Table Updates
+        // Volleyball DB
         try { volleyballDb.Database.ExecuteSqlRaw("ALTER TABLE Teams ADD COLUMN MiniGamePoints INTEGER NOT NULL DEFAULT 0;"); } catch { }
         try { volleyballDb.Database.ExecuteSqlRaw("ALTER TABLE Teams ADD COLUMN Points INTEGER NOT NULL DEFAULT 0;"); } catch { }
         try { volleyballDb.Database.ExecuteSqlRaw("ALTER TABLE Matches ADD COLUMN MatchOrder INTEGER NOT NULL DEFAULT 0;"); } catch { }
         try { volleyballDb.Database.ExecuteSqlRaw("ALTER TABLE Matches ADD COLUMN Session INTEGER NOT NULL DEFAULT 1;"); } catch { }
         try { volleyballDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsFirstHalfPublic INTEGER NOT NULL DEFAULT 0;"); } catch { }
         try { volleyballDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsSecondHalfPublic INTEGER NOT NULL DEFAULT 0;"); } catch { }
-
-        // MANUAL MIGRATION: Volleyball Teams UNIQUE Index (Session + Name)
         try 
         { 
             volleyballDb.Database.ExecuteSqlRaw("DROP INDEX IF EXISTS IX_Teams_Name;");
             volleyballDb.Database.ExecuteSqlRaw("CREATE UNIQUE INDEX IF NOT EXISTS IX_Teams_Name_Session ON Teams (Name, Session);");
         } catch { }
 
-        // SEED ADMIN USER
+        // --- 2. EF-BASED AUTO-MIGRATIONS (Safe now that columns exist) ---
+        
+        var encryption = scope.ServiceProvider.GetRequiredService<ClubMTServer.Services.EncryptionService>();
+
+        var membersToFix = memberDb.AdminUsers.Where(m => string.IsNullOrEmpty(m.Username)).ToList(); // Dummy check to trigger EF mapping if needed
+        
+        var realMembersToFix = memberDb.Members.Where(m => string.IsNullOrEmpty(m.NameHash)).ToList();
+        foreach (var m in realMembersToFix)
+        {
+            m.NameHash = encryption.ComputeHash(m.Name);
+        }
+        if (realMembersToFix.Any()) memberDb.SaveChanges();
+
+        var participantsToFix = participantDb.Participants.Where(p => string.IsNullOrEmpty(p.NameHash)).ToList();
+        foreach (var p in participantsToFix)
+        {
+            p.NameHash = encryption.ComputeHash(p.Name);
+        }
+        if (participantsToFix.Any()) participantDb.SaveChanges();
+
+        // --- 3. SEEDING ---
         if (!memberDb.AdminUsers.Any())
         {
             memberDb.AdminUsers.Add(new AdminUser
