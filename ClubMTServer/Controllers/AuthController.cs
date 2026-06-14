@@ -18,11 +18,13 @@ public class AuthController : ControllerBase
 {
     private readonly MemberDbContext _context;
     private readonly IConfiguration _configuration;
+    private readonly Microsoft.Extensions.Caching.Memory.IMemoryCache _cache;
 
-    public AuthController(MemberDbContext context, IConfiguration configuration)
+    public AuthController(MemberDbContext context, IConfiguration configuration, Microsoft.Extensions.Caching.Memory.IMemoryCache cache)
     {
         _context = context;
         _configuration = configuration;
+        _cache = cache;
     }
 
     [HttpPost("login")]
@@ -40,6 +42,9 @@ public class AuthController : ControllerBase
         var sessionId = Guid.NewGuid().ToString();
         user.CurrentSessionId = sessionId;
         await _context.SaveChangesAsync();
+
+        // IMPORTANT: Invalidate the session cache to ensure the middleware picks up the new SID
+        _cache.Remove($"session_admin_{user.Username}");
 
         var token = GenerateJwtToken(user, sessionId);
 

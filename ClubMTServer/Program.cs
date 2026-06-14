@@ -138,21 +138,47 @@ try
                     QueueLimit = 0
                 }));
 
-        // Cheer: User-based if authenticated, otherwise IP-based
+        // Cheer: Hybrid strategy - lower limit for individuals, slightly higher shared limit for anonymous NAT users
         options.AddPolicy("cheer", httpContext =>
-            RateLimitPartition.GetFixedWindowLimiter(
-                partitionKey: httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
-                              ?? httpContext.Connection.RemoteIpAddress?.ToString() 
-                              ?? "anonymous-cheer",
-                factory: _ => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = 1000,
-                    Window = TimeSpan.FromSeconds(10),
-                    QueueLimit = 0
-                }));
+        {
+            var userId = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(userId))
+            {
+                // Authenticated user: individual limit (50 requests per 10 seconds is plenty for human speed)
+                return RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: $"user_{userId}",
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 50,
+                        Window = TimeSpan.FromSeconds(10),
+                        QueueLimit = 0
+                    });
+            }
+            else
+            {
+                // Anonymous users: shared IP limit (200 requests per 10 seconds to accommodate multiple users behind NAT)
+                return RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: $"ip_{httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous"}",
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 200,
+                        Window = TimeSpan.FromSeconds(10),
+                        QueueLimit = 0
+                    });
+            }
+        });
     });
 
-    var dataDir = Path.Combine(Directory.GetCurrentDirectory(), "data");
+    var baseDir = builder.Environment.ContentRootPath;
+    // If the project is running from the project folder, move up to the solution root for data
+    var dataDir = Path.Combine(baseDir, "..", "data");
+    
+    // In Production/Docker, we might want a fixed path, but for local dev this is safer
+    if (builder.Environment.IsProduction() && Directory.Exists("/app/data")) 
+    {
+        dataDir = "/app/data";
+    }
+
     var uploadsDir = Path.Combine(dataDir, "uploads");
     Directory.CreateDirectory(dataDir);
     Directory.CreateDirectory(uploadsDir);
@@ -173,6 +199,8 @@ try
         options.UseSqlite($"Data Source={Path.Combine(dataDir, "vehicles.db")}"));
     builder.Services.AddDbContext<PhotoDbContext>(options =>
         options.UseSqlite($"Data Source={Path.Combine(dataDir, "photos.db")}"));
+    builder.Services.AddDbContext<VolleyballDbContext>(options =>
+       options.UseSqlite($"Data Source={Path.Combine(dataDir, "volleyball.db")}"));
 
     builder.Services.AddSingleton<ClubMTServer.Services.AuditLogQueue>();
     builder.Services.AddSingleton<ClubMTServer.Services.CheerCacheService>();
@@ -195,6 +223,16 @@ try
     });
 
     var app = builder.Build();
+
+    // Security Headers Middleware
+    app.Use(async (context, next) =>
+    {
+        context.Response.Headers.Append("X-Frame-Options", "SAMEORIGIN");
+        context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+        context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
+        context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+        await next(context);
+    });
 
     // Enable Forwarded Headers for Nginx Proxy
     var forwardedOptions = new ForwardedHeadersOptions
@@ -258,22 +296,38 @@ try
     // Session Validation Middleware: Enforce single-session management with In-Memory Caching
     app.Use(async (context, next) =>
     {
+        var path = context.Request.Path.Value ?? "";
+        
+        // Skip validation for Auth and Registration endpoints to prevent login loops
+        bool isExempted = path.Contains("/api/Auth", StringComparison.OrdinalIgnoreCase) || 
+                          path.Contains("/api/Participants", StringComparison.OrdinalIgnoreCase) || 
+                          path.Contains("/api/Settings/open-status", StringComparison.OrdinalIgnoreCase);
+
+        if (isExempted)
+        {
+            await next(context);
+            return;
+        }
+
         // Only validate if a JWT cookie exists. If it doesn't, let standard authorization handle it.
         if (context.Request.Cookies.ContainsKey("jwt") && context.User.Identity?.IsAuthenticated == true)
         {
             var sidClaim = context.User.FindFirst("sid")?.Value;
             var roleClaim = context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            var nameClaim = context.User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
             bool isValid = false;
+            string errorDetail = "";
 
-            if (!string.IsNullOrEmpty(sidClaim) && !string.IsNullOrEmpty(context.User.Identity.Name))
+            if (!string.IsNullOrEmpty(sidClaim) && !string.IsNullOrEmpty(nameClaim))
             {
                 var cache = context.RequestServices.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
-                var cacheKey = $"session_{roleClaim}_{context.User.Identity.Name}";
+                var cacheKey = $"session_{roleClaim}_{nameClaim}";
 
                 // 1. Try to get valid session ID from cache
                 if (cache.TryGetValue(cacheKey, out string? cachedSid))
                 {
                     if (cachedSid == sidClaim) isValid = true;
+                    else errorDetail = "SID mismatch (cached)";
                 }
                 else
                 {
@@ -284,8 +338,7 @@ try
                     if (roleClaim == "admin")
                     {
                         var db = scope.ServiceProvider.GetRequiredService<MemberDbContext>();
-                        var username = context.User.Identity.Name;
-                        var user = await db.AdminUsers.FirstOrDefaultAsync(u => u.Username == username);
+                        var user = await db.AdminUsers.FirstOrDefaultAsync(u => u.Username == nameClaim);
                         dbSid = user?.CurrentSessionId;
                     }
                     else if (roleClaim == "Participant")
@@ -303,12 +356,15 @@ try
                     if (dbSid != null)
                     {
                         if (dbSid == sidClaim) isValid = true;
+                        else errorDetail = "SID mismatch (db)";
                         
                         // Cache the DB result for 2 minutes to reduce load
                         cache.Set(cacheKey, dbSid, TimeSpan.FromMinutes(2));
                     }
+                    else errorDetail = "User not found in DB";
                 }
             }
+            else errorDetail = "Missing claims (sid/name)";
 
             if (!isValid)
             {
@@ -324,7 +380,7 @@ try
 
                 // Return 401 immediately for stale sessions to force logout/re-login
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                await context.Response.WriteAsync("Session expired or logged in from another device.");
+                await context.Response.WriteAsync($"Session invalid: {errorDetail}");
                 return;
             }
         }
@@ -432,6 +488,7 @@ try
         var cookingDb = scope.ServiceProvider.GetRequiredService<CookingBattleDbContext>();
         var vehicleDb = scope.ServiceProvider.GetRequiredService<VehicleDbContext>();
         var photoDb = scope.ServiceProvider.GetRequiredService<PhotoDbContext>();
+        var volleyballDb = scope.ServiceProvider.GetRequiredService<VolleyballDbContext>();
 
         memberDb.Database.EnsureCreated();
         settingsDb.Database.EnsureCreated();
@@ -441,6 +498,7 @@ try
         cookingDb.Database.EnsureCreated();
         vehicleDb.Database.EnsureCreated();
         photoDb.Database.EnsureCreated();
+        volleyballDb.Database.EnsureCreated();
 
         // AUTO-MIGRATION: Fill missing NameHash for existing data
         var encryption = scope.ServiceProvider.GetRequiredService<ClubMTServer.Services.EncryptionService>();
@@ -511,10 +569,32 @@ try
                 );");
         } catch { }
 
-        // MANUAL MIGRATION: Participants IsCancelRequested Column
+        // MANUAL MIGRATION: Participants IsCancelRequested and SortOrder Columns
         try 
         { 
             participantDb.Database.ExecuteSqlRaw(@"ALTER TABLE Participants ADD COLUMN IsCancelRequested INTEGER NOT NULL DEFAULT 0;");
+        } catch { }
+        try 
+        { 
+            participantDb.Database.ExecuteSqlRaw(@"ALTER TABLE Participants ADD COLUMN SortOrder REAL NOT NULL DEFAULT 0.0;");
+        } catch { }
+        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN ChecklistJson TEXT NULL;"); } catch { }
+        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN CommonChecklistStatusJson TEXT NULL;"); } catch { }
+        try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN MbtiResult TEXT NULL;"); } catch { }
+
+        // MANUAL MIGRATION: Volleyball Table Updates
+        try { volleyballDb.Database.ExecuteSqlRaw("ALTER TABLE Teams ADD COLUMN MiniGamePoints INTEGER NOT NULL DEFAULT 0;"); } catch { }
+        try { volleyballDb.Database.ExecuteSqlRaw("ALTER TABLE Teams ADD COLUMN Points INTEGER NOT NULL DEFAULT 0;"); } catch { }
+        try { volleyballDb.Database.ExecuteSqlRaw("ALTER TABLE Matches ADD COLUMN MatchOrder INTEGER NOT NULL DEFAULT 0;"); } catch { }
+        try { volleyballDb.Database.ExecuteSqlRaw("ALTER TABLE Matches ADD COLUMN Session INTEGER NOT NULL DEFAULT 1;"); } catch { }
+        try { volleyballDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsFirstHalfPublic INTEGER NOT NULL DEFAULT 0;"); } catch { }
+        try { volleyballDb.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN IsSecondHalfPublic INTEGER NOT NULL DEFAULT 0;"); } catch { }
+
+        // MANUAL MIGRATION: Volleyball Teams UNIQUE Index (Session + Name)
+        try 
+        { 
+            volleyballDb.Database.ExecuteSqlRaw("DROP INDEX IF EXISTS IX_Teams_Name;");
+            volleyballDb.Database.ExecuteSqlRaw("CREATE UNIQUE INDEX IF NOT EXISTS IX_Teams_Name_Session ON Teams (Name, Session);");
         } catch { }
 
         // SEED ADMIN USER

@@ -89,5 +89,7 @@ public class Participant
 
     public string? CurrentSessionId { get; set; } // For single-session management
 
+    public double SortOrder { get; set; } // For manual reordering and ranking
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

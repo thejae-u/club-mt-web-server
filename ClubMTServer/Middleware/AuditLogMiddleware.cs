@@ -17,7 +17,8 @@ namespace ClubMTServer.Middleware
         private readonly AuditLogQueue _queue;
         private static readonly string[] SensitiveKeys = { 
             "password", "newPassword", "oldPassword", "adminKey", "key",
-            "name", "studentId", "phoneNumber", "studentID", "phone" 
+            "name", "studentId", "phoneNumber", "studentID", "phone",
+            "allergies", "remarks"
         };
         private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
         {
@@ -65,8 +66,8 @@ namespace ClubMTServer.Middleware
                     }
                     catch
                     {
-                        // If parsing fails (not JSON or malformed), fall back to keeping the original (or we could choose to mask everything)
-                        // For safety, if it's not JSON, we might want to log that it couldn't be sanitized.
+                        // If parsing fails (not JSON or malformed), mask it to prevent potential PII leak in malformed data
+                        sanitizedBody = "[Unparseable or Non-JSON Body - Masked for Security]";
                     }
                 }
 

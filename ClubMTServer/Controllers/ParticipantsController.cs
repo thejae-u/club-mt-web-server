@@ -21,13 +21,15 @@ public class ParticipantsController : ControllerBase
     private readonly MemberDbContext _memberContext;
     private readonly IConfiguration _config;
     private readonly ClubMTServer.Services.EncryptionService _encryption;
+    private readonly Microsoft.Extensions.Caching.Memory.IMemoryCache _cache;
 
-    public ParticipantsController(ParticipantDbContext context, MemberDbContext memberContext, IConfiguration config, ClubMTServer.Services.EncryptionService encryption)
+    public ParticipantsController(ParticipantDbContext context, MemberDbContext memberContext, IConfiguration config, ClubMTServer.Services.EncryptionService encryption, Microsoft.Extensions.Caching.Memory.IMemoryCache cache)
     {
         _context = context;
         _memberContext = memberContext;
         _config = config;
         _encryption = encryption;
+        _cache = cache;
     }
 
     [HttpPost("login")]
@@ -53,6 +55,9 @@ public class ParticipantsController : ControllerBase
         var sessionId = Guid.NewGuid().ToString();
         p.CurrentSessionId = sessionId;
         await _context.SaveChangesAsync();
+
+        // IMPORTANT: Invalidate the session cache
+        _cache.Remove($"session_Participant_{normalizedName}");
 
         // Generate JWT
         var secret = _config["JWT_SECRET"] ?? throw new InvalidOperationException("JWT_SECRET is missing.");
@@ -168,7 +173,10 @@ public class ParticipantsController : ControllerBase
         // Use more robust check for admin role
         bool isAdmin = User.Claims.Any(c => c.Type == ClaimTypes.Role && c.Value == "admin");
 
-        var rawList = await _context.Participants.ToListAsync();
+        var rawList = await _context.Participants
+            .OrderBy(p => p.IsWaitlisted)
+            .ThenBy(p => p.SortOrder)
+            .ToListAsync();
 
         if (isAdmin)
         {
@@ -226,35 +234,72 @@ public class ParticipantsController : ControllerBase
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> ToggleWaitlist(int id, [FromServices] SettingsDbContext settingsContext)
     {
-        var participant = await _context.Participants.FindAsync(id);
-        if (participant == null) return NotFound();
-
-        if (participant.IsWaitlisted)
+        using var transaction = await _context.Database.BeginTransactionAsync();
+        try
         {
-            // Try to confirm: Check capacity
-            var settings = await settingsContext.Settings.FirstOrDefaultAsync() ?? new SiteSettings();
-            var allRegistered = await _context.Participants.Where(p => p.IsRegistered && !p.IsWaitlisted && !p.IsCancelRequested).ToListAsync();
-            
-            if (participant.Type == ParticipantType.Military)
+            var participant = await _context.Participants.FindAsync(id);
+            if (participant == null) return NotFound();
+
+            if (participant.IsDepositConfirmed)
             {
-                if (allRegistered.Count(p => p.Type == ParticipantType.Military) >= settings.MaxMilitaryCapacity)
-                    return BadRequest("군인 정원이 가득 찼습니다. 먼저 정원을 늘려주세요.");
+                return BadRequest("이미 입금완료된 신청자입니다. 상태를 변경하려면 먼저 입금 확인을 해제해주세요.");
+            }
+
+            if (participant.IsWaitlisted)
+            {
+                // Try to confirm: Check capacity
+                var settings = await settingsContext.Settings.FirstOrDefaultAsync() ?? new SiteSettings();
+                var allRegistered = await _context.Participants.Where(p => p.IsRegistered && !p.IsWaitlisted && !p.IsCancelRequested).ToListAsync();
+                
+                if (participant.Type == ParticipantType.Military)
+                {
+                    if (allRegistered.Count(p => p.Type == ParticipantType.Military) >= settings.MaxMilitaryCapacity)
+                        return BadRequest("군인 정원이 가득 찼습니다. 먼저 정원을 늘려주세요.");
+                }
+                else
+                {
+                    if (allRegistered.Count(p => p.Type != ParticipantType.Military) >= settings.MaxGeneralCapacity)
+                        return BadRequest("일반 정원이 가득 찼습니다. 먼저 정원을 늘려주세요.");
+                }
+                participant.IsWaitlisted = false;
+                // When moving from Waitlisted to Confirmed, we keep the SortOrder (they stay at their relative position)
+                // or we could move them to the end of confirmed. 
+                // For now, keeping SortOrder is fine as it's already higher than most confirmed.
             }
             else
             {
-                if (allRegistered.Count(p => p.Type != ParticipantType.Military) >= settings.MaxGeneralCapacity)
-                    return BadRequest("일반 정원이 가득 찼습니다. 먼저 정원을 늘려주세요.");
-            }
-            participant.IsWaitlisted = false;
-        }
-        else
-        {
-            // Move back to waitlist
-            participant.IsWaitlisted = true;
-        }
+                // Move back to waitlist: Place at the VERY FRONT of the waitlist
+                participant.IsWaitlisted = true;
+                
+                var minWaitlistedSortOrder = await _context.Participants
+                    .Where(p => p.IsWaitlisted && p.Id != id)
+                    .MinAsync(p => (double?)p.SortOrder);
 
-        await _context.SaveChangesAsync();
-        return Ok(new { isWaitlisted = participant.IsWaitlisted });
+                if (minWaitlistedSortOrder.HasValue)
+                {
+                    participant.SortOrder = minWaitlistedSortOrder.Value - 1.0;
+                }
+                else
+                {
+                    // If no one is waitlisted, set it to a value larger than any confirmed but smaller than future ones?
+                    // Actually, just making it slightly larger than the max confirmed is better.
+                    var maxConfirmedSortOrder = await _context.Participants
+                        .Where(p => !p.IsWaitlisted && p.Id != id)
+                        .MaxAsync(p => (double?)p.SortOrder);
+                    
+                    participant.SortOrder = (maxConfirmedSortOrder ?? 0) + 1.0;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return Ok(new { isWaitlisted = participant.IsWaitlisted, sortOrder = participant.SortOrder });
+        }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 
     // POST: api/Participants/5/toggle-deposit (ADMIN ONLY)
@@ -269,6 +314,53 @@ public class ParticipantsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return Ok(new { isDepositConfirmed = participant.IsDepositConfirmed });
+    }
+
+    [HttpPost("{id}/reorder")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> ReorderParticipant(int id, [FromBody] int newRank)
+    {
+        if (newRank <= 0) return BadRequest("Rank must be greater than 0.");
+
+        using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            var participant = await _context.Participants.FindAsync(id);
+            if (participant == null) return NotFound();
+
+            // Get all participants ordered by SortOrder
+            var all = await _context.Participants
+                .OrderBy(p => p.SortOrder)
+                .ToListAsync();
+
+            all.RemoveAll(p => p.Id == id); // Remove current to calculate new position
+
+            if (newRank == 1)
+            {
+                participant.SortOrder = (all.Count > 0 ? all[0].SortOrder : 0) - 1.0;
+            }
+            else if (newRank > all.Count)
+            {
+                participant.SortOrder = (all.Count > 0 ? all[^1].SortOrder : 0) + 1.0;
+            }
+            else
+            {
+                // Place between newRank-1 and newRank (0-indexed in 'all' list)
+                // Since we removed 'id', newRank 2 means it should be between all[0] and all[1]
+                var before = all[newRank - 2];
+                var after = all[newRank - 1];
+                participant.SortOrder = (before.SortOrder + after.SortOrder) / 2.0;
+            }
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return Ok(new { id = participant.Id, newSortOrder = participant.SortOrder });
+        }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 
     [HttpGet("{id}")]
@@ -397,6 +489,7 @@ public class ParticipantsController : ControllerBase
         participant.IsRegistered = true;
         participant.IsWaitlisted = shouldWaitlist;
         participant.CreatedAt = DateTime.UtcNow;
+        participant.SortOrder = participant.CreatedAt.Ticks;
 
         if (existing == null) _context.Participants.Add(participant);
         await _context.SaveChangesAsync();
@@ -618,7 +711,9 @@ public class ParticipantsController : ControllerBase
         }
 
         participant.IsCancelRequested = false;
-        participant.CreatedAt = DateTime.UtcNow; // Penalty: Push to end of line
+        // Default: Add to the end of its group using current ticks
+        participant.CreatedAt = DateTime.UtcNow;
+        participant.SortOrder = participant.CreatedAt.Ticks;
         participant.IsWaitlisted = shouldWaitlist;
 
         await _context.SaveChangesAsync();
@@ -671,7 +766,9 @@ public class ParticipantsController : ControllerBase
         }
 
         participant.IsCancelRequested = false;
-        participant.CreatedAt = DateTime.UtcNow; // Push to end of line
+        // Default: Add to the end of its group using current ticks
+        participant.CreatedAt = DateTime.UtcNow;
+        participant.SortOrder = participant.CreatedAt.Ticks;
         participant.IsWaitlisted = shouldWaitlist;
 
         await _context.SaveChangesAsync();
