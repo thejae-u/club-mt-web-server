@@ -512,6 +512,7 @@ try
         try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN ChecklistJson TEXT NULL;"); } catch { }
         try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN CommonChecklistStatusJson TEXT NULL;"); } catch { }
         try { participantDb.Database.ExecuteSqlRaw("ALTER TABLE Participants ADD COLUMN MbtiResult TEXT NULL;"); } catch { }
+        try { participantDb.Database.ExecuteSqlRaw("CREATE UNIQUE INDEX IF NOT EXISTS IX_Participants_NameHash_Generation ON Participants (NameHash, Generation);"); } catch { }
         try 
         { 
             participantDb.Database.ExecuteSqlRaw(@"

@@ -492,9 +492,17 @@ public class ParticipantsController : ControllerBase
         participant.SortOrder = participant.CreatedAt.Ticks;
 
         if (existing == null) _context.Participants.Add(participant);
-        await _context.SaveChangesAsync();
 
-        string msg = shouldWaitlist ? "정원이 초과되어 대기자 명단으로 등록되었습니다!" : "신청이 완료되었습니다!";
+        try 
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            return BadRequest("이미 신청이 진행 중이거나 완료된 회원입니다.");
+        }
+
+        string msg = shouldWaitlist ? "정원이 초과되어 대기자 명단으로 등록되었습 니다!" : "신청이 완료되었습니다!";
         return Ok(new { participant.Id, Name = reg.Name, isWaitlisted = shouldWaitlist, message = msg });
     }
 
