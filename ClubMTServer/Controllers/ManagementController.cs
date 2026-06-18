@@ -161,9 +161,9 @@ public class ManagementController : ControllerBase
         };
 
         var expectations = registeredOnly
-            .Where(p => !string.IsNullOrEmpty(p.OneLineExpectation))
+            .Where(p => !string.IsNullOrWhiteSpace(p.OneLineExpectation))
             .OrderByDescending(p => p.CreatedAt)
-            .Take(10)
+            .Take(50)
             .Select(p => {
                 var decryptedName = p.Name ?? ""; // Already decrypted by EF Core
                 var maskedName = decryptedName.Length > 1 
