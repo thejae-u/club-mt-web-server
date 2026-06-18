@@ -616,7 +616,7 @@ public class ParticipantsController : ControllerBase
         var p = await _context.Participants.FindAsync(id);
         if (p == null) return NotFound();
 
-        var phone = _encryption.Decrypt(p.PhoneNumber) ?? "";
+        var phone = p.PhoneNumber ?? "";
         var normalizedPhone = new string(phone.Where(char.IsDigit).ToArray());
         var last4Digits = normalizedPhone.Length >= 4 ? normalizedPhone[^4..] : "0000";
         var newPassword = $"mt{last4Digits}!!";
