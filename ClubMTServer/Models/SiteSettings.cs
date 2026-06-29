@@ -37,6 +37,8 @@ public class SiteSettings
 
     public bool IsManittoPublic { get; set; } = false;
 
+    public bool IsManittoMissionPublic { get; set; } = false;
+
     public int ManittoMissionCount { get; set; } = 3;
 
     public bool IsCookingBattlePublic { get; set; } = false;

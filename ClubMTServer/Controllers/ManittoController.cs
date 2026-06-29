@@ -178,12 +178,25 @@ public class ManittoController : ControllerBase
             });
         }
 
+        if (!settings.IsManittoMissionPublic)
+        {
+            return new
+            {
+                TargetName = target != null ? target.Name : "Unknown",
+                TargetGeneration = target?.Generation ?? 0,
+                Missions = new List<object>(),
+                IsMissionPublic = false,
+                IsComplete = p.ManittoAssignment.IsMissionComplete
+            };
+        }
+
         return new
         {
             TargetName = target != null ? target.Name : "Unknown",
             TargetGeneration = target?.Generation ?? 0,
             Missions = missionData,
-            IsComplete = p.ManittoAssignment.IsMissionComplete // Legacy single status
+            IsMissionPublic = true,
+            IsComplete = p.ManittoAssignment.IsMissionComplete
         };
     }
 
@@ -191,6 +204,12 @@ public class ManittoController : ControllerBase
     [Authorize]
     public async Task<IActionResult> CompleteMission(int missionId)
     {
+        var settings = await _settingsContext.Settings.FirstOrDefaultAsync();
+        if (settings == null || !settings.IsManittoMissionPublic)
+        {
+            return BadRequest("현재 미션이 공개되지 않아 완료 처리할 수 없습니다.");
+        }
+
         var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (idClaim == null || !int.TryParse(idClaim, out var id)) return Unauthorized();
 

@@ -331,9 +331,31 @@ public class ManagementController : ControllerBase
         if (settings == null) return NotFound();
 
         settings.IsManittoPublic = !settings.IsManittoPublic;
+        if (!settings.IsManittoPublic)
+        {
+            settings.IsManittoMissionPublic = false;
+        }
         await settingsContext.SaveChangesAsync();
 
         return Ok(new { isPublic = settings.IsManittoPublic, message = settings.IsManittoPublic ? "마니또 정보가 공개되었습니다." : "마니또 정보가 비공개 처리되었습니다." });
+    }
+
+    [HttpPost("manitto/toggle-mission-visibility")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> ToggleManittoMissionVisibility([FromServices] SettingsDbContext settingsContext)
+    {
+        var settings = await settingsContext.Settings.FirstOrDefaultAsync();
+        if (settings == null) return NotFound();
+
+        if (!settings.IsManittoPublic)
+        {
+            return BadRequest("마니또가 비공개 상태인 경우 미션을 공개할 수 없습니다.");
+        }
+
+        settings.IsManittoMissionPublic = !settings.IsManittoMissionPublic;
+        await settingsContext.SaveChangesAsync();
+
+        return Ok(new { isPublic = settings.IsManittoMissionPublic, message = settings.IsManittoMissionPublic ? "마니또 미션이 공개되었습니다." : "마니또 미션이 비공개 처리되었습니다." });
     }
 
     [HttpPut("manitto/assignments/{id}")]

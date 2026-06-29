@@ -84,6 +84,12 @@ public class SettingsController : ControllerBase
             settings.IsCookingBattleChefPublic = true;
         }
 
+        // Rule: If Manitto public is disabled, Manitto mission public must also be disabled.
+        if (!settings.IsManittoPublic)
+        {
+            settings.IsManittoMissionPublic = false;
+        }
+
         var existing = await _context.Settings.FirstOrDefaultAsync();
         if (existing == null)
         {
@@ -105,6 +111,7 @@ public class SettingsController : ControllerBase
             existing.ScheduleDataJson = settings.ScheduleDataJson;
             existing.CommonChecklistJson = settings.CommonChecklistJson;
             existing.IsManittoPublic = settings.IsManittoPublic;
+            existing.IsManittoMissionPublic = settings.IsManittoMissionPublic;
             existing.ManittoMissionCount = settings.ManittoMissionCount;
             existing.IsCookingBattlePublic = settings.IsCookingBattlePublic;
             existing.IsCookingBattleChefPublic = settings.IsCookingBattleChefPublic;

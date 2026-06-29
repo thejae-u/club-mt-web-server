@@ -391,7 +391,7 @@ public class ParticipantsController : ControllerBase
             p.IsCarpoolAvailable, p.CarpoolSeats,
             p.DepartureArea, p.Allergies, p.Remarks, p.OneLineExpectation,
             p.HasDriverLicense, p.DriverLicenseType, p.CanDrive, p.DrivingExperience,
-            p.IsMilitaryPriority, p.MilitaryStatus, p.IsRegistered, p.IsWaitlisted
+            p.IsMilitaryPriority, p.MilitaryStatus, p.IsRegistered, p.IsWaitlisted, p.IsDepositConfirmed
         };
     }
 
