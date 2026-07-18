@@ -510,6 +510,7 @@ public class ManagementController : ControllerBase
 
     [HttpGet("cooking-battle/applications")]
     [Authorize(Roles = "admin")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<IEnumerable<CookingBattleApplication>>> GetCookingBattleApplications()
     {
         return await _cookingContext.Applications.OrderByDescending(a => a.CreatedAt).ToListAsync();
@@ -628,6 +629,7 @@ public class ManagementController : ControllerBase
 
     [HttpGet("cooking-battle/assignments")]
     [Authorize(Roles = "admin")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<IEnumerable<object>>> GetCookingBattleAssignments([FromServices] SettingsDbContext settingsContext)
     {
         var assignments = await _cookingContext.Assignments.ToListAsync();
@@ -680,7 +682,7 @@ public class ManagementController : ControllerBase
 
     [HttpPost("cooking-battle/reset-teams")]
     [Authorize(Roles = "admin")]
-    public async Task<IActionResult> ResetCookingTeams([FromBody] ResetRequestDto req)
+    public async Task<IActionResult> ResetCookingTeams([FromBody] ResetRequestDto req, [FromServices] ClubMTServer.Services.CheerCacheService cheerCache)
     {
         var admin = await _memberContext.AdminUsers.FirstOrDefaultAsync(u => u.Username == User.Identity!.Name);
         if (admin == null || !BCrypt.Net.BCrypt.Verify(req.Password, admin.PasswordHash)) return Unauthorized("비밀번호가 일치하지 않습니다.");
@@ -694,12 +696,53 @@ public class ManagementController : ControllerBase
         _cookingContext.Comments.RemoveRange(_cookingContext.Comments);
 
         await _cookingContext.SaveChangesAsync();
+
+        cheerCache.ClearCache();
+
         return Ok(new { message = "팀 배정 정보 및 관련 투표/응원/한줄평이 모두 초기화되었습니다. (오더 셰프 유지)" });
+    }
+
+    [HttpPost("cooking-battle/reset-cheers")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> ResetCheers([FromBody] ResetRequestDto req, [FromServices] ClubMTServer.Services.CheerCacheService cheerCache)
+    {
+        var admin = await _memberContext.AdminUsers.FirstOrDefaultAsync(u => u.Username == User.Identity!.Name);
+        if (admin == null || !BCrypt.Net.BCrypt.Verify(req.Password, admin.PasswordHash)) return Unauthorized("비밀번호가 일치하지 않습니다.");
+        _cookingContext.Cheers.RemoveRange(_cookingContext.Cheers);
+        await _cookingContext.SaveChangesAsync();
+
+        cheerCache.ClearCache();
+
+        return Ok(new { message = "응원 데이터가 초기화되었습니다. (배정 데이터 유지)" });
+    }
+
+    [HttpPost("cooking-battle/reset-comments")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> ResetComments([FromBody] ResetRequestDto req)
+    {
+        var admin = await _memberContext.AdminUsers.FirstOrDefaultAsync(u => u.Username == User.Identity!.Name);
+        if (admin == null || !BCrypt.Net.BCrypt.Verify(req.Password, admin.PasswordHash)) return Unauthorized("비밀번호가 일치하지 않습니다.");
+        _cookingContext.Comments.RemoveRange(_cookingContext.Comments);
+        await _cookingContext.SaveChangesAsync();
+
+        return Ok(new { message = "한줄평 데이터가 초기화되었습니다. (배정 데이터 유지)" });
+    }
+
+    [HttpPost("cooking-battle/reset-votes")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> ResetVotes([FromBody] ResetRequestDto req)
+    {
+        var admin = await _memberContext.AdminUsers.FirstOrDefaultAsync(u => u.Username == User.Identity!.Name);
+        if (admin == null || !BCrypt.Net.BCrypt.Verify(req.Password, admin.PasswordHash)) return Unauthorized("비밀번호가 일치하지 않습니다.");
+        _cookingContext.Votes.RemoveRange(_cookingContext.Votes);
+        await _cookingContext.SaveChangesAsync();
+
+        return Ok(new { message = "투표 데이터가 초기화되었습니다. (배정 데이터 유지)" });
     }
 
     [HttpPost("cooking-battle/reset")]
     [Authorize(Roles = "admin")]
-    public async Task<IActionResult> ResetCookingBattle([FromBody] ResetRequestDto req)
+    public async Task<IActionResult> ResetCookingBattle([FromBody] ResetRequestDto req, [FromServices] ClubMTServer.Services.CheerCacheService cheerCache)
     {
         var admin = await _memberContext.AdminUsers.FirstOrDefaultAsync(u => u.Username == User.Identity!.Name);
         if (admin == null || !BCrypt.Net.BCrypt.Verify(req.Password, admin.PasswordHash)) return Unauthorized("비밀번호가 일치하지 않습니다.");
@@ -709,6 +752,9 @@ public class ManagementController : ControllerBase
         _cookingContext.Votes.RemoveRange(_cookingContext.Votes);
         _cookingContext.Comments.RemoveRange(_cookingContext.Comments);
         await _cookingContext.SaveChangesAsync();
+
+        cheerCache.ClearCache();
+
         return Ok(new { message = "요리 배틀 데이터가 초기화되었습니다." });
     }
 }

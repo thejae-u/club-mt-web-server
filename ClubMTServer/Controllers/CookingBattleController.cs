@@ -129,6 +129,7 @@ public class CookingBattleController : ControllerBase
             MyApplication = myApplication,
             MyAssignment = (isPublic || isChefPublic) ? myAssignment : null,
             Teams = (isPublic || isChefPublic) ? teams : null,
+            MyVote = myVote,
             CheerStats = new {
                 Black = blackCheers,
                 White = whiteCheers,
@@ -174,10 +175,14 @@ public class CookingBattleController : ControllerBase
     }
 
     [HttpGet("comments/{team}")]
-    public async Task<ActionResult<IEnumerable<object>>> GetComments(string team)
+    public async Task<ActionResult<IEnumerable<object>>> GetComments(string team, [FromServices] SettingsDbContext settingsContext)
     {
         if (!Enum.TryParse<CookingTeam>(team, true, out var cookingTeam) || cookingTeam == CookingTeam.None)
             return BadRequest("잘못된 팀 선택입니다.");
+
+        var settings = await settingsContext.Settings.FirstOrDefaultAsync();
+        if (settings == null || !settings.IsCookingBattlePublic)
+            return Ok(new List<object>());
 
         var comments = await _context.Comments
             .Where(c => c.Team == cookingTeam)
@@ -262,6 +267,9 @@ public class CookingBattleController : ControllerBase
             return StatusCode(403, new { message = "취소 신청 상태이거나 취소된 참가자는 이용할 수 없습니다." });
 
         var settings = await _settingsContext.Settings.FirstOrDefaultAsync();
+        if (settings == null || !settings.IsCookingBattlePublic)
+            return BadRequest("아직 요리배틀이 공개되지 않아 응원할 수 없습니다.");
+
         var maxCheer = settings?.MaxCheerPerPerson ?? 10;
 
         // Use caching service for counting and adding cheers
@@ -282,6 +290,9 @@ public class CookingBattleController : ControllerBase
     public async Task<IActionResult> Vote(string team)
     {
         var settings = await _settingsContext.Settings.FirstOrDefaultAsync();
+        if (settings == null || !settings.IsCookingBattlePublic)
+            return BadRequest("아직 요리배틀이 공개되지 않아 투표할 수 없습니다.");
+
         if (settings == null || !settings.IsCookingBattleVotingActive)
             return BadRequest("지금은 투표 기간이 아닙니다.");
 

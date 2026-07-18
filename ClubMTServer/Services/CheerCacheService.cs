@@ -101,4 +101,13 @@ public class CheerCacheService
     {
         return (_blackCheerCount < 0 ? 0 : _blackCheerCount, _whiteCheerCount < 0 ? 0 : _whiteCheerCount);
     }
+
+    public void ClearCache()
+    {
+        while (_cheerQueue.TryDequeue(out _)) { }
+        _userCheerCountCache.Clear();
+        _blackCheerCount = 0;
+        _whiteCheerCount = 0;
+        _isInitialized = false;
+    }
 }

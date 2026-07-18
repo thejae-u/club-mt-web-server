@@ -78,10 +78,30 @@ public class SettingsController : ControllerBase
             return BadRequest("군인 우대 정원은 일반 정원보다 클 수 없습니다.");
         }
 
-        // Rule: If full public is enabled, chef public must also be enabled.
+        // Rule 1: If voting is active, full public (기능 공개) and chef public must also be enabled.
+        if (settings.IsCookingBattleVotingActive)
+        {
+            settings.IsCookingBattlePublic = true;
+            settings.IsCookingBattleChefPublic = true;
+        }
+
+        // Rule 2: If full public is enabled, chef public must also be enabled.
         if (settings.IsCookingBattlePublic)
         {
             settings.IsCookingBattleChefPublic = true;
+        }
+
+        // Rule 3: If chef public is disabled, full public and voting must also be disabled.
+        if (!settings.IsCookingBattleChefPublic)
+        {
+            settings.IsCookingBattlePublic = false;
+            settings.IsCookingBattleVotingActive = false;
+        }
+
+        // Rule 4: If full public is disabled, voting must also be disabled.
+        if (!settings.IsCookingBattlePublic)
+        {
+            settings.IsCookingBattleVotingActive = false;
         }
 
         // Rule: If Manitto public is disabled, Manitto mission public must also be disabled.
