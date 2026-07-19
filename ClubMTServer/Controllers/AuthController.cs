@@ -70,7 +70,7 @@ public class AuthController : ControllerBase
         bool isAdmin = User.Claims.Any(c => c.Type == ClaimTypes.Role && c.Value == "admin");
         if (!isAdmin) return Unauthorized();
 
-        return Ok(new { username = User.Identity?.Name });
+        return Ok(new { username = User.Identity?.Name, role = "admin" });
     }
 
     [HttpPost("logout")]
